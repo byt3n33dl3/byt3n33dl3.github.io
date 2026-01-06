@@ -1,5 +1,5 @@
 <a href="https://byt3n33dl3.github.io/"><p align="center">
-<img src="/images/hammerhead.png">
+<img src="/images/hammerhead.png" width="25%">
 </p></a>
 
 <a href="https://specterops.io/">
