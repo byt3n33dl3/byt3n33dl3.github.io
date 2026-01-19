@@ -1,12 +1,12 @@
 <a href="https://byt3n33dl3.github.io/"><p align="center">
-<img src="/images/hammerhead.png" width="25%">
+<img src="/images/adverxarial-banner.png" width="30%">
 </p></a>
 
 <a href="https://specterops.io/">
     <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fspecterops%2F.github%2Fmain%2Fconfig%2Fshield.json" alt="Sponsored by SpecterOps"/>
 </a>
 
-AdverXarial page, an obvious <ins>non-APT</ins> teams. Focused on:
+AdverXarial page, an obvious <ins>non-APT</ins> team:
 - Red Teaming Engagements
 - Adversary Emulator
 

