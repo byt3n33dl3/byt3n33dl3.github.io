@@ -1,10 +1,15 @@
 <a href="https://byt3n33dl3.github.io/"><p align="center">
-<img src="/images/adverxarial-banner.png" width="30%">
+<img src="/images/adverxarial-banner.png" width="25%">
 </p></a>
+
+SpecterOps,<br>
+Built by Attackers. Trusted by Defenders.
 
 <a href="https://specterops.io/">
     <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fspecterops%2F.github%2Fmain%2Fconfig%2Fshield.json" alt="Sponsored by SpecterOps"/>
 </a>
+
+![Applies to BloodHound Enterprise and CE](https://mintlify.s3.us-west-1.amazonaws.com/specterops/assets/enterprise-AND-community-edition-pill-tag.svg)
 
 AdverXarial page, an obvious <ins>non-APT</ins> team:
 - Red Teaming Engagements

