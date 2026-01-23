@@ -1,0 +1,263 @@
+
+* {
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: #d4d4d4;
+    background: #0a0a0a;
+}
+
+a {
+    text-decoration: none;
+    color: #8b0000;
+}
+
+a:hover,
+a:focus {
+    color: #c41e3a;
+    text-decoration: underline;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    line-height: 1.2;
+    color: #fff;
+}
+
+.pure-g-r {
+    letter-spacing: -0.31em;
+    text-rendering: optimizespeed;
+    font-family: FreeSans, Arimo, "Droid Sans", Helvetica, Arial, sans-serif;
+    display: -webkit-flex;
+    -webkit-flex-flow: row wrap;
+    display: -ms-flexbox;
+    -ms-flex-flow: row wrap;
+}
+
+.pure-u {
+    display: inline-block;
+    zoom: 1;
+    letter-spacing: normal;
+    word-spacing: normal;
+    vertical-align: top;
+    text-rendering: auto;
+}
+
+#layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    background: #000;
+    color: #fff;
+    width: 300px;
+    min-height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+    border-right: 2px solid #8b0000;
+}
+
+.cover-img {
+    height: 150px;
+    background: linear-gradient(180deg, #1a0000 0%, #000 100%);
+}
+
+.cover-body {
+    padding: 20px;
+}
+
+.header {
+    margin: 0;
+}
+
+.brand-main a {
+    color: #fff;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.brand-main a:hover {
+    color: #8b0000;
+    text-decoration: none;
+}
+
+.tagline {
+    margin: 10px 0 20px 0;
+    color: #8b0000;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+}
+
+.links {
+    margin: 20px 0;
+}
+
+.links a {
+    color: #fff;
+    padding: 8px 16px;
+    display: inline-block;
+    border: 1px solid #333;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    transition: all 0.2s;
+}
+
+.links a:hover {
+    background: #8b0000;
+    border-color: #8b0000;
+    color: #fff;
+    text-decoration: none;
+}
+
+.social {
+    margin-top: 30px;
+}
+
+.social a {
+    display: inline-block;
+    margin-right: 15px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.social a:hover {
+    opacity: 1;
+}
+
+.social img {
+    filter: invert(1);
+}
+
+.content {
+    margin-left: 300px;
+    padding: 40px 60px;
+    max-width: 900px;
+}
+
+.content-subhead {
+    font-size: 32px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 40px 0;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #8b0000;
+}
+
+.post {
+    margin-bottom: 60px;
+}
+
+.post-header {
+    margin-bottom: 15px;
+}
+
+.post-avatar {
+    border-radius: 50%;
+    float: left;
+    margin-right: 15px;
+    margin-top: 5px;
+    width: 48px;     
+    height: 48px;    
+    object-fit: cover;
+}
+
+.post-title {
+    font-size: 26px;
+    margin: 0 0 10px 0;
+    font-weight: 600;
+}
+
+.post-title a {
+    color: #fff;
+}
+
+.post-title a:hover {
+    color: #8b0000;
+    text-decoration: none;
+}
+
+.post-meta {
+    color: #777;
+    font-size: 14px;
+    margin: 0;
+    clear: both;
+}
+
+.post-author,
+.post-category {
+    color: #8b0000;
+}
+
+.post-author:hover,
+.post-category:hover {
+    color: #c41e3a;
+}
+
+.post-description {
+    line-height: 1.7;
+    color: #b8b8b8;
+}
+
+.post-description p {
+    margin: 0;
+}
+
+.footer {
+    margin-top: 80px;
+    padding-top: 30px;
+    border-top: 1px solid #222;
+    color: #666;
+    font-size: 13px;
+}
+
+.footer a {
+    color: #8b0000;
+}
+
+@media (max-width: 900px) {
+    .sidebar {
+        width: 100%;
+        position: relative;
+        min-height: auto;
+        border-right: none;
+        border-bottom: 2px solid #8b0000;
+    }
+    
+    .cover-img {
+        height: 100px;
+    }
+    
+    .content {
+        margin-left: 0;
+        padding: 30px 20px;
+    }
+}
+
+@media (max-width: 600px) {
+    .content {
+        padding: 20px 15px;
+    }
+    
+    .content-subhead {
+        font-size: 24px;
+    }
+    
+    .post-title {
+        font-size: 20px;
+    }
+    
+    .post-avatar {
+        display: none;
+    }
+}
