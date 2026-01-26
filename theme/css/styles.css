@@ -11,6 +11,7 @@ body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     color: #d4d4d4;
     background: #0a0a0a;
+    overflow-x: hidden;
 }
 
 a {
@@ -52,6 +53,8 @@ h1, h2, h3, h4, h5, h6 {
 #layout {
     display: flex;
     min-height: 100vh;
+    overflow-x: hidden;
+    width: 100%;
 }
 
 .sidebar {
@@ -143,6 +146,8 @@ h1, h2, h3, h4, h5, h6 {
     margin-left: 300px;
     padding: 40px 60px;
     max-width: 900px;
+    overflow-x: hidden;
+    width: calc(100% - 300px);
 }
 
 .content-subhead {
@@ -241,7 +246,9 @@ h1, h2, h3, h4, h5, h6 {
     .content {
         margin-left: 0;
         padding: 30px 20px;
+        width: 100%;
     }
+
 }
 
 @media (max-width: 600px) {

@@ -1,15 +1,24 @@
 
+html {
+    overflow-x: hidden;
+}
+
 pre {
     background: #0f0f0f;
     border: 1px solid #333;
     border-left: 3px solid #8b0000;
     padding: 15px;
     overflow-x: auto;
+    overflow-y: hidden;
     margin: 20px 0;
     font-family: 'Courier New', monospace;
     font-size: 14px;
     line-height: 1.5;
     color: #d4d4d4;
+    max-width: 100%;
+    width: 100%;
+    display: block;
+    box-sizing: border-box;
 }
 
 code {
@@ -25,6 +34,8 @@ pre code {
     background: none;
     padding: 0;
     border-radius: 0;
+    display: block;
+    white-space: pre;
 }
 
 p code, li code {
