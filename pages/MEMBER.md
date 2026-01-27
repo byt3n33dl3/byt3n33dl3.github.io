@@ -1,5 +1,5 @@
 <a href="https://byt3n33dl3.github.io/"><p align="center">
-<img src="/images/hammerhead.png" width="25%">
+<img src="/images/hammerhead.png" width="20%">
 </p></a>
 
 <div align="center">
