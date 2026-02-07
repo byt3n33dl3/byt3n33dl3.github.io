@@ -1,12 +1,15 @@
 <a href="https://byt3n33dl3.github.io/"><p align="center">
-<img src="/images/adverxarial-banner.png" width="25%">
-</p></a>
+<img src="/images/specterops-logo.png" width="70%">
+</p></a><br>
 
 <a href="https://specterops.io/">
     <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fspecterops%2F.github%2Fmain%2Fconfig%2Fshield.json" alt="Sponsored by SpecterOps"/>
-</a>
+</a><br>
+
+## _<ins>Legacy Project</ins>_
 
 AdverXarial page, an obvious <ins>non-APT</ins> team:
+
 - Red Teaming Engagements
 - Adversary Emulator Operation
 
