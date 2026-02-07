@@ -1,6 +1,6 @@
 <a href="https://byt3n33dl3.github.io/"><p align="center">
 <img src="/images/adverxarial-banner.png" width="25%">
-</p></a><br>
+</p></a>
 
 # Security Policy
 
