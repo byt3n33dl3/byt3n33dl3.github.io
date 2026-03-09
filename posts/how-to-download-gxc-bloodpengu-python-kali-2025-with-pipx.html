@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>How to Download gxc-BloodPengu.py on Kali Linux 2025.4 with pipx // byt3n33dl3</title>
+    <link rel="icon" type="image/png" href="../images/logo.png">
+    <link rel="stylesheet" href="../theme/css/pure.css">
+    <link rel="stylesheet" href="../theme/css/styles.css">
+    <link rel="stylesheet" href="../theme/css/pygments.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div class="pure-g-r" id="layout">
+    <div class="sidebar pure-u">
+        <div class="cover-img"></div>
+        <div class="cover-body">
+            <header class="header">
+                <hgroup>
+                    <h1 class="brand-main"><a href="../index.html">AdverXarial</a></h1>
+                    <p class="tagline">Red Team // Adversary Emulator // Maintained by byt3n33dl3</p>
+                    <p class="links">
+                        <a href="../pages/about.html">About</a>
+                        <a href="https://byt3n33dl3.substack.com/">Archives</a>
+                    </p>
+                    <p class="social">
+                        <a href="https://github.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/github.svg" width="20" height="20" alt="GitHub">
+                        </a>
+                        <a href="#">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/linkedin.svg" width="20" height="20" alt="Substack">
+                        </a>
+                        <a href="https://x.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/twitter.svg" width="20" height="20" alt="Twitter">
+                        </a>
+                    </p>
+                </hgroup>
+            </header>
+        </div>
+    </div>
+
+    <div class="pure-u">
+        <div class="content">
+            <div class="post-header">
+                <img src="../images/logo.png" alt="avatar" class="post-avatar">
+                <div class="post-meta-wrapper">
+                    <h2 class="post-author"><a href="../pages/byt3n33dl3.html">byt3n33dl3</a></h2>
+                    <p class="post-date">Published Fri 6 Mar 2026</p>
+                </div>
+            </div>
+
+            <p class="back-link"><a href="../index.html">← Home</a></p>
+
+            <article class="post-content">
+                <h1>How to Download gxc-BloodPengu.py on Kali Linux 2025.4 with pipx</h1>
+                <p class="post-tags">Tags: <a href="#">Pentesting</a> · <a href="#">Tutorial</a> · <a href="#">Linux</a></p>
+
+                <p class="post-meta">Blog released: 2026 Fri 6 Mar.</p>
+
+                <h1>Tools Overviews</h1>
+
+                <p>Ever since creating BloodPengu, my only attack-paths collector are <a href="https://github.com/pengu-apm/PyPengu"><ins>PyPengu,</ins></a> which very different from SharpHound, BloodPengu collectors map attack-paths based of relation-ships on file/access ownerships and kernel mechanism.</p>
+
+                <p>But then PyPengu gain several concern.</p> 
+                
+                <p>I believe as Pentester my-self bunch of you guys hate Tools that requires custom binary each deploy, etc, making PyPengu is not very flexible as swiss-army knife, FKA "I'm to lazy for it".</p>
+
+                <p>That's why I develop <a href="https://github.com/byt3n33dl3/gxc-BloodPengu.py"><ins>gxc-BloodPengu.py,</ins></a> it's a based logon SSH collectors, enabling faster interaction on collecting data accross Linux system (as long the target have bash/shell).</p>
+                
+                <p>It's logon sessions over paramiko, optionally chaining through a jump host, and systematically enumerates the target through a modular collector architecture covering <ins>SUID binaries, writable services, cron misconfigurations, sudo policy weaknesses, Docker group membership, kernel version fingerprinting against a curated CVE registry spanning</ins> <code>2.4.x</code> <ins>through</ins> <code>6.x</code> <ins>and loaded kernel module inspection,</ins> enabling potential escalation much easier!!</p>
+                
+                <h2>How to Install gxc-BloodPengu.py with pipx</h2>
+
+                <p>pipx is the most easiest method for the installation, further more <a href="https://github.com/byt3n33dl3/gxc-BloodPengu.py/blob/main/Install.md"><ins>look at this page</ins></a> if you want the more details.</p>
+                
+                <p>Open-up your CLI and make sure you <a href="https://github.com/pypa/pipx"><ins>have pipx</ins></a> ready:</p>
+
+                <pre><code class="language-plaintext">pipx install bloodpengu-python</code></pre>
+
+                <p>Post-installation:</p>
+
+                <pre><code class="language-plaintext">┌──(byt3n33dl3㉿kali)-[~]
+└─$ bloodpengu-python -h
+
+         _  __        ___  __             _____                                
+   ___ _| |/_/_______/ _ )/ /__  ___  ___/ / _ \___ ___  ___ ___ __  ___  __ __
+  / _ `/\  // __/___/ _  / / _ \/ _ \/ _  / ___/ -_) _ \/ _ `/ // / / _ \/ // /
+  \_, /_/|_|\__/   /____/_/\___/\___/\_,_/_/   \__/_//_/\_, /\_,_(_) .__/\_, / 
+ /___/                                                 /___/      /_/   /___/  
+
+                           v1.5.3 [SuSHi Rav3n]                          
+
+  gxc-BloodPengu.py v1.5.3 | by <@byt3n33dl3>
+  Data collector in Python for BloodPengu APM
+
+  Usage:
+    bloodpengu-python <target> [options]
+
+  ----------------------------------------------------------------------
+
+  Authentication:  (required one of -p or -k)
+
+    -u USERNAME          SSH username
+    -p PASSWORD          Authenticate with password
+    -k KEY_FILE          Authenticate with RSA/PEM private key  (e.g. id_rsa, key.pem)
+
+  Target Options:
+
+    -d DOMAIN            Domain or hostname  (stored in output for BloodPengu context)
+    --port PORT          SSH port  (default: 22)
+    --old-ssh            Enable legacy SSH algorithms  (for old OpenSSH targets)
+    --jumphost HOST      Pivot via jump host  (format: user:pass@host:port)
+    --jumphost-key FILE  Key file for jump host auth
+
+  Modules:  (all collectors run by default, use -M to run one only)
+
+    -M MODULE            Run a specific module only
+
+        Available modules:
+        sacspengu         Compiler and Binary Analysis suggestor
+        avrisk            Anti-Virus Discovery!!
+        brace             Container and Cloud Assessor
+        kernel            Kernel and LPE CVE's checklists!!
+
+  Output:
+
+    -o OUTPUT_FILE       Write JSON to file  (default: pypengu-output.json)
+    -v                   Verbosity as each collector result as it arrives
+    --no-color           Disable color output
+
+  ----------------------------------------------------------------------
+
+  Examples:
+
+    bloodpengu-python <target> -u kraken -p kr@ken
+    bloodpengu-python <target> -u kraken -k ~/.ssh/id_rsa
+    bloodpengu-python <target> -u kraken -k ~/.ssh/id_rsa --port 2222
+    bloodpengu-python <target> -u kraken -p kr@ken -d kraken.htb -v
+    bloodpengu-python <target> -u kraken -p kr@ken -M sacspengu
+    bloodpengu-python <target> -u kraken -p kr@ken -M avrisk
+    bloodpengu-python <target> -u kraken -p kr@ken -M brace
+    bloodpengu-python <target> -u kraken -p kr@ken -M kernel
+    bloodpengu-python <target> -u kraken -k id_rsa -o ./results/kraken.json
+
+  ----------------------------------------------------------------------
+
+  Collectors:  (all run by default unless -M is specified)
+
+    Collector       Role        Description
+    -------------  ---------  ----------------------------------------------------
+    users           COLLECT     Local users, UID 0 accounts, /etc/passwd, /etc/group
+    sudo            COLLECT     NOPASSWD rules, dangerous sudo binaries, misconfigs
+    suid            COLLECT     SUID and SGID binaries with GTFOBins cross-reference
+    groups          COLLECT     Privileged groups - docker, lxd, disk, shadow, adm
+    services        COLLECT     Writable systemd units, hijackable service scripts
+    cron            COLLECT     Writable cron scripts, scheduled task privilege paths
+    kernel          COLLECT     Kernel version matched against known CVE list
+    containers      ESCAPE      Docker socket, LXD membership, cloud credentials, K8s
+    network         RECON       Listening ports, interfaces, internal network range
+    env             DISCOVER    Env vars, history files, interesting files in home/opt
+    sacspengu       COMPILE     Compilers, writable PATH/lib dirs, capabilities, build files
+    avrisk          RECON       Anti-Virus Discovery!!
+    brace           ESCAPE      Container and Cloud Assessor
+    kernel          RECON       Kernel and LPE CVE's checklists!!
+
+  ----------------------------------------------------------------------
+
+  Output lands on attacker machine as pypengu-output.json
+  Import directly into BloodPengu!!
+
+  gxc-BloodPengu.py v1.5.3 by <@byt3n33dl3> github.com/byt3n33dl3/gxc-BloodPengu.py </code></pre>
+
+                <p>At the time creating this gxc-BloodPengu.py are in <a href="https://github.com/byt3n33dl3/gxc-BloodPengu.py/releases/tag/v1.5.3"><ins>version 1.5.3</ins></a> The SuSHi Rav3n:</p>
+
+                <p>Moreover, <a href="mailto:byt3n33dl3@pm.me"><ins>Proton me</ins></a> if you have further question and suggestion.</p>
+                
+                <p class="go-top"><a href="#">Go Top</a></p>
+            </article>
+
+            <footer class="footer">
+                <p>&copy; byt3n33dl3 2024 · Built with blood, sweat, and HTML · <a href="../pages/all.atom.xml">RSS</a></p>
+            </footer>
+        </div>
+    </div>
+</div>
+</body>
+</html>
