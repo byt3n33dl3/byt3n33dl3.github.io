@@ -53,7 +53,7 @@
                     </p>
                 </header>
                 <div class="post-description">
-                    <p>Pretty much an early blog for beta BloodPengu and it's attack kit. Linux based infra commercial CTF are also quite fastly done (Under 1 Hour) by BloodPengu. Curretly BloodPengu is on <a href="https://github.com/pengu-apm/BloodPengu"><ins>version 2.5.4</ins></a> and not yet perfect but here we go.</p>
+                    <p>Pretty much an early blog for beta BloodPengu and it's attack kit. Linux based infra commercial CTF are also quite fastly done (Under 1 Hour) by BloodPengu. Curretly BloodPengu is on <a href="https://github.com/pengu-apm/BloodPengu"><ins>version 2.5.4</ins></a> and not yet perfect.</p>
                 </div>                
             </section>
             
@@ -209,6 +209,21 @@
                 </header>
                 <div class="post-description">
                     <p>Enumeration and attack upon Active Directory processes via NetExec framework, covering LDAP query on BloodHound collectors until LAPS module usage. PS: WinRM perform better on <code>--laps</code> command.</p>
+                </div>
+            </section>
+
+            <section class="post">
+                <header class="post-header">
+                    <img src="./images/logo.png" alt="avatar" class="post-avatar">
+                    <h2 class="post-title">
+                        <a href="./posts/getting-to-administrator-with-nxc-and-ntlmrelayx.html">Getting to Administrator with NetExec (Coerce) and ntlmrelayx.py</a>
+                    </h2>
+                    <p class="post-meta">
+                        By <a href="./pages/byt3n33dl3.html" class="post-author">byt3n33dl3</a> in <a href="#" class="post-category">Red Teaming</a> · Mon 4 November 2024
+                    </p>
+                </header>
+                <div class="post-description">
+                    <p>Chaining together several techniques for <ins>Coerce to NTLM relay to winrm.</ins> With PrinterBug module <code>MS-RPRN SpoolSS</code> forcing DC to authenticate back to our DNS and gain NTLM relay authentication with <a href="https://github.com/fortra/impacket/blob/master/examples/ntlmrelayx.py"><ins>ntlmrelayx.py</ins></a> to a different service <code>winrm</code>. Additionally, a cross-protocol relay that the Coerced auth comes in over SMB, but get relayed to winrm over HTTPs.</p>
                 </div>
             </section>
 
