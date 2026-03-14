@@ -12,7 +12,7 @@ AdverXarial page:
 - Adversary `Emulator Operation`
 
 <div align="center">
-  <a href="https://byt3n33dl3.github.io">byt3n33dl3.github.io</a> •
+  <a href="https://byt3n33dl3.github.io">byt3.pw</a> •
   <a href="mailto:byt3n33dl3@pm.me">byt3n33dl3@pm.me</a>
 <p></div>
 
@@ -22,7 +22,7 @@ AdverXarial page:
 
 Well mentained by <a href="https://github.com/byt3n33dl3/">@byt3n33dl3</a> and teams.
 
-Backup page on by Substack at: <https://byt3n33dl3.substack.com>
+Backup page on by Substack at [byt3n33dl3.substack](https://byt3n33dl3.substack.com)
 
 ## License
 
