@@ -1,15 +1,15 @@
 <p align="center">
     <picture>
-        <img src="./images/adverxarial-banner.png" alt="AdverXarial" width='22%'/>
+        <img src="./images/adverxarial-banner.png" alt="AdverXarial" width='30%'/>
     </picture>
 </p>
 
 ## _<ins>Legacy Project</ins>_
 
-AdverXarial page, an obvious <ins>non-APT</ins> team:
+AdverXarial page:
 
 - Red Teaming Engagements
-- Adversary Emulator Operation
+- Adversary `Emulator Operation`
 
 <div align="center">
   <a href="https://byt3n33dl3.github.io">byt3n33dl3.github.io</a> •
@@ -40,14 +40,6 @@ Backup page on by Substack at: <https://byt3n33dl3.substack.com>
 software and other kinds of works, specifically designed to ensure
 cooperation with the community in the case of network server software.
 ```
-
-## Contributors 
-
-Teams and Contributor
-
-<a href="https://github.com/byt3n33dl3/byt3n33dl3.github.io/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=byt3n33dl3/byt3n33dl3.github.io" />
-</a>
 
 ## CONTACT
 

