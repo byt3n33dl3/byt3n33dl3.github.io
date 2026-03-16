@@ -99,67 +99,7 @@
 
   Authentication:  (required one of -p or -k)
 
-    -u USERNAME          SSH username
-    -p PASSWORD          Authenticate with password
-    -k KEY_FILE          Authenticate with RSA/PEM private key  (e.g. id_rsa, key.pem)
-
-  Target Options:
-
-    -d DOMAIN            Domain or hostname  (stored in output for BloodPengu context)
-    --port PORT          SSH port  (default: 22)
-    --old-ssh            Enable legacy SSH algorithms  (for old OpenSSH targets)
-    --jumphost HOST      Pivot via jump host  (format: user:pass@host:port)
-    --jumphost-key FILE  Key file for jump host auth
-
-  Modules:  (all collectors run by default, use -M to run one only)
-
-    -M MODULE            Run a specific module only
-
-        Available modules:
-        sacspengu         Compiler and Binary Analysis suggestor
-        avrisk            Anti-Virus Discovery!!
-        brace             Container and Cloud Assessor
-        kernel            Kernel and LPE CVE's checklists!!
-
-  Output:
-
-    -o OUTPUT_FILE       Write JSON to file  (default: pypengu-output.json)
-    -v                   Verbosity as each collector result as it arrives
-    --no-color           Disable color output
-
-  ----------------------------------------------------------------------
-
-  Examples:
-
-    bloodpengu-python <target> -u kraken -p kr@ken
-    bloodpengu-python <target> -u kraken -k ~/.ssh/id_rsa
-    bloodpengu-python <target> -u kraken -k ~/.ssh/id_rsa --port 2222
-    bloodpengu-python <target> -u kraken -p kr@ken -d kraken.htb -v
-    bloodpengu-python <target> -u kraken -p kr@ken -M sacspengu
-    bloodpengu-python <target> -u kraken -p kr@ken -M avrisk
-    bloodpengu-python <target> -u kraken -p kr@ken -M brace
-    bloodpengu-python <target> -u kraken -p kr@ken -M kernel
-    bloodpengu-python <target> -u kraken -k id_rsa -o ./results/kraken.json
-
-  ----------------------------------------------------------------------
-
-  Collectors:  (all run by default unless -M is specified)
-
-    Collector       Role        Description
-    -------------  ---------  ----------------------------------------------------
-    users           COLLECT     Local users, UID 0 accounts, /etc/passwd, /etc/group
-    sudo            COLLECT     NOPASSWD rules, dangerous sudo binaries, misconfigs
-    suid            COLLECT     SUID and SGID binaries with GTFOBins cross-reference
-    groups          COLLECT     Privileged groups - docker, lxd, disk, shadow, adm
-    services        COLLECT     Writable systemd units, hijackable service scripts
-    cron            COLLECT     Writable cron scripts, scheduled task privilege paths
-    kernel          COLLECT     Kernel version matched against known CVE list
-    containers      ESCAPE      Docker socket, LXD membership, cloud credentials, K8s
-    network         RECON       Listening ports, interfaces, internal network range
-    env             DISCOVER    Env vars, history files, interesting files in home/opt
-    sacspengu       COMPILE     Compilers, writable PATH/lib dirs, capabilities, build files
-    avrisk          RECON       Anti-Virus Discovery!!
-    brace           ESCAPE      Container and Cloud Assessor
+. . .[SNIP]. . .
     kernel          RECON       Kernel and LPE CVE's checklists!!
 
   ----------------------------------------------------------------------

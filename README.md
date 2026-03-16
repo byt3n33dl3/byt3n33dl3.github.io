@@ -27,18 +27,14 @@ Backup page on by Substack at [byt3n33dl3.substack](https://byt3n33dl3.substack.
 ## License
 
 ```
-                    GNU AFFERO GENERAL PUBLIC LICENSE
-                       Version 3, 19 November 2007
+                  AdverXarial LICENSE
+                  Version 2.3 Jan 2024
 
- Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
- Everyone is permitted to copy and distribute verbatim copies
- of this license document, but changing it is not allowed.
-
-                            Preamble
-
-  The GNU Affero General Public License is a free, copyleft license for
-software and other kinds of works, specifically designed to ensure
-cooperation with the community in the case of network server software.
+Copyright (C) 2024 fron AdverXarial <byt3n33dl3.github.io>,
+            Well Mentained by x.com/byt3n33dl3/
+AdverXarial page, are a-non-APT teams. This page are dedicated 
+      for CyBeRsEcUrItY Red Teaming focused orgs only.
+   AdverXarial are owned and well-mentained by byt3n33dl3.
 ```
 
 ## CONTACT
