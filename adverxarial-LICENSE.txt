@@ -1,8 +1,0 @@
-                  AdverXarial LICENSE
-                  Version 2.3 Jan 2024
-
-Copyright (C) 2024 fron AdverXarial <byt3n33dl3.github.io>,
-            Well Mentained by x.com/byt3n33dl3/
-AdverXarial page, are a-non-APT teams. This page are dedicated 
-      for CyBeRsEcUrItY Red Teaming focused orgs only.
-   AdverXarial are owned and well-mentained by byt3n33dl3.
